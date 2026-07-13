@@ -14,7 +14,7 @@ const VOICES = [
   { name: 'Aoede', label: 'Aoede (Clear Female)' }
 ];
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'https://studio-8m77.onrender.com';
 
 export default function CustomAudioPlayer({ script, onAudioGenerated }) {
   const [voice, setVoice] = useState('Puck');
