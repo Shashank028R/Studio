@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Sparkles, FileText, Volume2, Loader2, Play, 
   HelpCircle, Settings, CheckCircle, ListTodo, Film,
-  ChevronDown 
+  ChevronDown, Copy, Check
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import ScriptHistory from './ScriptHistory';
@@ -39,6 +39,29 @@ export default function EpisodeSummarizer({
   const [generatedScript, setGeneratedScript] = useState(null);
   const [successMsg, setSuccessMsg] = useState('');
   const [error, setError] = useState('');
+
+  const [copiedTitle, setCopiedTitle] = useState(false);
+  const [copiedCaption, setCopiedCaption] = useState(false);
+  const [copiedDesc, setCopiedDesc] = useState(false);
+  const [copiedTags, setCopiedTags] = useState(false);
+
+  const copyToClipboard = (text, type) => {
+    if (!text) return;
+    navigator.clipboard.writeText(text);
+    if (type === 'title') {
+      setCopiedTitle(true);
+      setTimeout(() => setCopiedTitle(false), 2000);
+    } else if (type === 'caption') {
+      setCopiedCaption(true);
+      setTimeout(() => setCopiedCaption(false), 2000);
+    } else if (type === 'desc') {
+      setCopiedDesc(true);
+      setTimeout(() => setCopiedDesc(false), 2000);
+    } else if (type === 'tags') {
+      setCopiedTags(true);
+      setTimeout(() => setCopiedTags(false), 2000);
+    }
+  };
 
   // Sync with active long script selection from history sidebar
   useEffect(() => {
@@ -427,6 +450,100 @@ export default function EpisodeSummarizer({
                 <span>Type: Long Video</span>
               </div>
             </div>
+
+            {/* YouTube Optimization Metadata Section */}
+            {generatedScript.metadata && (
+              <div className="glass-panel rounded-2xl p-5 border-cyan-500/20 bg-[#0d091e]/80 space-y-4 shadow-lg">
+                <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
+                  <Sparkles className="w-4 h-4 text-cyber-cyan" />
+                  <h4 className="text-xs font-black text-white uppercase tracking-widest">
+                    🎬 YouTube Optimization Metadata
+                  </h4>
+                </div>
+
+                <div className="space-y-3.5">
+                  {/* YouTube Title */}
+                  <div className="space-y-1">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[9px] font-black text-cyber-cyan uppercase tracking-widest">
+                        Optimized YouTube Video Title
+                      </span>
+                      <button
+                        onClick={() => copyToClipboard(generatedScript.metadata.youtubeTitle, 'title')}
+                        className="text-[9px] font-bold text-cyber-muted hover:text-cyber-cyan flex items-center gap-1 transition-all"
+                      >
+                        {copiedTitle ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
+                        <span>{copiedTitle ? 'Copied!' : 'Copy'}</span>
+                      </button>
+                    </div>
+                    <div className="bg-slate-950/60 border border-slate-800/80 rounded-xl px-3 py-2 text-[11px] text-white select-all font-medium leading-relaxed">
+                      {generatedScript.metadata.youtubeTitle}
+                    </div>
+                  </div>
+
+                  {/* YouTube Caption/Hook */}
+                  {generatedScript.metadata.youtubeCaption && (
+                    <div className="space-y-1">
+                      <div className="flex justify-between items-center">
+                        <span className="text-[9px] font-black text-cyber-cyan/80 uppercase tracking-widest">
+                          Engaging Video Caption / Short Hook
+                        </span>
+                        <button
+                          onClick={() => copyToClipboard(generatedScript.metadata.youtubeCaption, 'caption')}
+                          className="text-[9px] font-bold text-cyber-muted hover:text-cyber-cyan flex items-center gap-1 transition-all"
+                        >
+                          {copiedCaption ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
+                          <span>{copiedCaption ? 'Copied!' : 'Copy'}</span>
+                        </button>
+                      </div>
+                      <div className="bg-slate-950/60 border border-slate-800/80 rounded-xl px-3 py-2 text-[10px] text-slate-300 select-all leading-relaxed italic">
+                        "{generatedScript.metadata.youtubeCaption}"
+                      </div>
+                    </div>
+                  )}
+
+                  {/* YouTube Description */}
+                  <div className="space-y-1">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[9px] font-black text-cyber-pink uppercase tracking-widest">
+                        SEO Description & Timestamps
+                      </span>
+                      <button
+                        onClick={() => copyToClipboard(generatedScript.metadata.youtubeDescription, 'desc')}
+                        className="text-[9px] font-bold text-cyber-muted hover:text-cyber-pink flex items-center gap-1 transition-all"
+                      >
+                        {copiedDesc ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
+                        <span>{copiedDesc ? 'Copied!' : 'Copy'}</span>
+                      </button>
+                    </div>
+                    <textarea
+                      readOnly
+                      value={generatedScript.metadata.youtubeDescription}
+                      className="w-full bg-slate-950/60 border border-slate-800/80 rounded-xl px-3 py-2 text-[10px] text-slate-300 font-mono resize-none focus:outline-none h-24 select-all leading-normal"
+                    />
+                  </div>
+
+                  {/* YouTube Tags */}
+                  <div className="space-y-1">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[9px] font-black text-cyber-purple uppercase tracking-widest">
+                        Recommended SEO Tags
+                      </span>
+                      <button
+                        onClick={() => copyToClipboard(generatedScript.metadata.youtubeTags, 'tags')}
+                        className="text-[9px] font-bold text-cyber-muted hover:text-cyber-purple flex items-center gap-1 transition-all"
+                      >
+                        {copiedTags ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
+                        <span>{copiedTags ? 'Copied!' : 'Copy'}</span>
+                      </button>
+                    </div>
+                    <div className="bg-slate-950/60 border border-slate-800/80 rounded-xl px-3 py-2 text-[10px] text-slate-300 select-all leading-normal break-all font-mono">
+                      {generatedScript.metadata.youtubeTags}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Audio narration player (Unified) */}
             {(generatedScript.audioBase64 === 'active' || (generatedScript.audioBase64 && generatedScript.audioBase64 !== 'separate')) && (

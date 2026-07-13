@@ -54,6 +54,12 @@ const scriptSchema = new mongoose.Schema({
     type: String,
     default: ''
   },
+  metadata: {
+    youtubeTitle: { type: String, default: '' },
+    youtubeCaption: { type: String, default: '' },
+    youtubeDescription: { type: String, default: '' },
+    youtubeTags: { type: String, default: '' }
+  },
   createdAt: {
     type: Date,
     default: Date.now

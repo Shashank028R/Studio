@@ -891,6 +891,13 @@ For each scene, provide:
 5. episodeTimestampStart: The exact starting timestamp (integer in seconds, relative to the episode start) where this scene's events occur in the episode. Distribute these timestamps evenly across a standard 20-minute episode (between 60 and 1200 seconds) to cover the entire episode.
 
 Also, recommend where to find the raw episode (footageSuggestions field).
+
+Also, generate highly optimized YouTube metadata for this long summary video under the 'metadata' field:
+1. youtubeTitle: A clickbaity, high-CTR YouTube video title (under 70 characters).
+2. youtubeCaption: A short clickbaity caption/hook (under 120 characters) for video sharing, shorts teaser, or title extension.
+3. youtubeDescription: An SEO-optimized video description. You MUST include specific details about the anime: the Anime Name, Total Seasons of this anime series, and its official/overall Ratings (IMDb or MAL rating score e.g. "IMDb: 8.6/10"), followed by a brief overview of the plot, keywords, and a timestamp/chapter breakdown of all scenes.
+4. youtubeTags: A comma-separated list of highly relevant tags.
+
 Strictly adhere to the JSON output schema.`;
 
     const response = await ai.models.generateContent({
@@ -905,6 +912,16 @@ Strictly adhere to the JSON output schema.`;
             language: { type: 'STRING' },
             tone: { type: 'STRING' },
             footageSuggestions: { type: 'STRING' },
+            metadata: {
+              type: 'OBJECT',
+              properties: {
+                youtubeTitle: { type: 'STRING' },
+                youtubeCaption: { type: 'STRING' },
+                youtubeDescription: { type: 'STRING' },
+                youtubeTags: { type: 'STRING' }
+              },
+              required: ['youtubeTitle', 'youtubeCaption', 'youtubeDescription', 'youtubeTags']
+            },
             scenes: {
               type: 'ARRAY',
               items: {
@@ -920,7 +937,7 @@ Strictly adhere to the JSON output schema.`;
               }
             }
           },
-          required: ['animeTitle', 'language', 'tone', 'footageSuggestions', 'scenes']
+          required: ['animeTitle', 'language', 'tone', 'footageSuggestions', 'metadata', 'scenes']
         }
       }
     });
@@ -932,6 +949,12 @@ Strictly adhere to the JSON output schema.`;
       tone: scriptData.tone || tone,
       videoType: 'long',
       footageSuggestions: scriptData.footageSuggestions || `Season ${seasonNumber} Episode ${episodeNumber} footage.`,
+      metadata: scriptData.metadata || {
+        youtubeTitle: `${scriptData.animeTitle} Summary! S${seasonNumber} E${episodeNumber}`,
+        youtubeCaption: `Complete breakdown of ${scriptData.animeTitle} Season ${seasonNumber} Episode ${episodeNumber}.`,
+        youtubeDescription: `Detailed episode breakdown of ${scriptData.animeTitle}. Total Seasons: ${seasonNumber}, Rating: 9/10.`,
+        youtubeTags: 'anime, summary, review'
+      },
       scenes: scriptData.scenes,
       createdAt: new Date()
     };
@@ -999,7 +1022,7 @@ app.post('/api/generate-long-audio', async (req, res) => {
 
       // Rate limit throttle delay between Gemini calls
       if (i > 0 && !useFallback) {
-        await new Promise(resolve => setTimeout(resolve, 2500));
+        await new Promise(resolve => setTimeout(resolve, 6500));
       }
 
       if (!useFallback) {
