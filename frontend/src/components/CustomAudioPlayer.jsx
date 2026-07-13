@@ -14,6 +14,8 @@ const VOICES = [
   { name: 'Aoede', label: 'Aoede (Clear Female)' }
 ];
 
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+
 export default function CustomAudioPlayer({ script, onAudioGenerated }) {
   const [voice, setVoice] = useState('Puck');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -76,7 +78,7 @@ export default function CustomAudioPlayer({ script, onAudioGenerated }) {
     }
 
     try {
-      const response = await fetch('http://localhost:5000/api/generate-audio', {
+      const response = await fetch(`${BACKEND_URL}/api/generate-audio`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ scriptId: script._id, voice })
@@ -119,7 +121,7 @@ export default function CustomAudioPlayer({ script, onAudioGenerated }) {
         previewAudioRef.current.pause();
       }
       // Add a timestamp cache buster
-      previewAudioRef.current = new Audio(`http://localhost:5000/api/voice-preview?voice=${voice}&t=${Date.now()}`);
+      previewAudioRef.current = new Audio(`${BACKEND_URL}/api/voice-preview?voice=${voice}&t=${Date.now()}`);
       
       previewAudioRef.current.onended = () => {
         setIsPreviewing(false);
@@ -199,7 +201,7 @@ export default function CustomAudioPlayer({ script, onAudioGenerated }) {
     if (!script || !script._id) return;
     setError('');
     try {
-      const response = await fetch(`http://localhost:5000/api/scripts/${script._id}/audio/mp3`);
+      const response = await fetch(`${BACKEND_URL}/api/scripts/${script._id}/audio/mp3`);
       if (!response.ok) {
         throw new Error('Failed to retrieve MP3 from server.');
       }

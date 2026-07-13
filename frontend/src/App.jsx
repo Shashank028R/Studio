@@ -16,7 +16,7 @@ import CustomStudio from './components/CustomStudio';
 import EpisodeSummarizer from './components/EpisodeSummarizer';
 import LongVideoForge from './components/LongVideoForge';
 
-const BACKEND_URL = 'http://localhost:5000';
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('script'); // 'script', 'custom', 'video', 'summarizer', 'longvideo'

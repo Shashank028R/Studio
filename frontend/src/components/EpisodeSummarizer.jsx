@@ -8,7 +8,7 @@ import {
 import confetti from 'canvas-confetti';
 import ScriptHistory from './ScriptHistory';
 
-const BACKEND_URL = 'http://localhost:5000';
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
 const VOICE_ACTORS = [
   { name: 'Puck', label: 'Puck (Energetic Male)' },
   { name: 'Charon', label: 'Charon (Deep Male)' },
