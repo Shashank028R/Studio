@@ -1010,69 +1010,73 @@ app.post('/api/extract-script', upload.single('file'), async (req, res) => {
   const fileExt = path.extname(originalName).toLowerCase();
 
   try {
-    let rawContentText = '';
+    const responseSchema = {
+      type: 'OBJECT',
+      properties: {
+        animeTitle: { type: 'STRING' },
+        language: { type: 'STRING' },
+        tone: { type: 'STRING' },
+        footageSuggestions: { type: 'STRING' },
+        metadata: {
+          type: 'OBJECT',
+          properties: {
+            youtubeTitle: { type: 'STRING' },
+            youtubeCaption: { type: 'STRING' },
+            youtubeDescription: { type: 'STRING' },
+            youtubeTags: { type: 'STRING' }
+          },
+          required: ['youtubeTitle', 'youtubeCaption', 'youtubeDescription', 'youtubeTags']
+        },
+        scenes: {
+          type: 'ARRAY',
+          items: {
+            type: 'OBJECT',
+            properties: {
+              sceneNumber: { type: 'INTEGER' },
+              narratorText: { type: 'STRING' },
+              visualPrompt: { type: 'STRING' },
+              duration: { type: 'INTEGER' },
+              episodeTimestampStart: { type: 'INTEGER' },
+              dialogues: {
+                type: 'ARRAY',
+                items: {
+                  type: 'OBJECT',
+                  properties: {
+                    character: { type: 'STRING' },
+                    text: { type: 'STRING' }
+                  },
+                  required: ['character', 'text']
+                }
+              }
+            },
+            required: ['sceneNumber', 'narratorText', 'visualPrompt', 'duration', 'episodeTimestampStart', 'dialogues']
+          }
+        }
+      },
+      required: ['animeTitle', 'language', 'tone', 'footageSuggestions', 'metadata', 'scenes']
+    };
+
+    let scriptData;
 
     // If it's a subtitle/text file
     if (['.srt', '.vtt', '.txt', '.ass', '.ssa'].includes(fileExt)) {
-      rawContentText = await fs.promises.readFile(filePath, 'utf-8');
+      const rawContentText = await fs.promises.readFile(filePath, 'utf-8');
       fs.unlink(filePath, () => {});
-    } else if (['.mp4', '.mkv', '.avi', '.mov', '.mp3', '.wav', '.m4a', '.webm'].includes(fileExt)) {
-      let audioPath = filePath;
-      const isVideo = ['.mp4', '.mkv', '.avi', '.mov', '.webm'].includes(fileExt);
 
-      if (isVideo) {
-        audioPath = path.join(tempDir, `temp_${Date.now()}_extracted.mp3`);
-        await new Promise((resolve, reject) => {
-          ffmpeg(filePath)
-            .noVideo()
-            .audioCodec('libmp3lame')
-            .audioBitrate(128)
-            .on('end', () => resolve())
-            .on('error', (err) => reject(err))
-            .save(audioPath);
-        });
-        fs.unlink(filePath, () => {});
-      }
-
-      console.log('Transcribing audio via Gemini...');
-      const audioBase64 = await fs.promises.readFile(audioPath, { encoding: 'base64' });
-      fs.unlink(audioPath, () => {});
-
-      const transcriptResponse = await ai.models.generateContent({
-        model: 'gemini-3.5-flash',
-        contents: [
-          {
-            inlineData: {
-              mimeType: isVideo ? 'audio/mp3' : `audio/${fileExt.replace('.', '')}`,
-              data: audioBase64
-            }
-          },
-          `Listen to this audio track and generate a highly detailed chronological transcription of everything said, noting down the names of who said what (character attributions) and general timeline events.`
-        ]
-      });
-
-      rawContentText = transcriptResponse.text;
-    } else {
-      fs.unlink(filePath, () => {});
-      return res.status(400).json({ error: 'Unsupported file format.' });
-    }
-
-    console.log('Forging script storyboard from raw text...');
-    const animeTitle = originalName.replace(fileExt, '').replace(/[\-_]+/g, ' ');
-
-    const promptText = `You are a professional anime YouTube summary creator.
-Below is the raw transcript or subtitle contents of the anime episode: "${animeTitle}".
+      const animeTitle = originalName.replace(fileExt, '').replace(/[\-_]+/g, ' ');
+      const promptText = `You are a professional anime YouTube summary creator.
+Below is the raw subtitle text or transcript of the anime episode: "${animeTitle}".
 
 Raw content:
 ${rawContentText.substring(0, 45000)}
 
-Create a highly detailed narration script summarizing the plot of this episode.
+Create a highly detailed script storyboard describing the sequence of events, dialogue highlights, and narration for this episode.
 The script tone must be "${tone}" and in "${language}" language.
-Generate exactly 8 to 12 scenes covering the entire narrative timeline.
+Generate exactly 8 to 12 scenes.
 For each scene, provide:
 1. sceneNumber: sequential index starting from 1.
-2. narratorText: Narrator voiceover in the target language describing the event.
-3. visualPrompt: A detailed visual description in English of what is happening.
+2. narratorText: Comprehensive narrator voiceover in the target language.
+3. visualPrompt: A detailed visual description in English of the scenes and storyboard cues.
 4. duration: Estimated duration in seconds (usually 10 to 20 seconds).
 5. episodeTimestampStart: Estimated starting timestamp in seconds.
 6. dialogues: An array of key dialogue quotes of what was said in this scene. Each dialogue contains a "character" field (the name of the character) and a "text" field (the translated quote they spoke).
@@ -1087,60 +1091,100 @@ Also, generate highly optimized YouTube metadata:
 
 Strictly adhere to the JSON output schema.`;
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.5-flash',
-      contents: promptText,
-      config: {
-        responseMimeType: 'application/json',
-        responseSchema: {
-          type: 'OBJECT',
-          properties: {
-            animeTitle: { type: 'STRING' },
-            language: { type: 'STRING' },
-            tone: { type: 'STRING' },
-            footageSuggestions: { type: 'STRING' },
-            metadata: {
-              type: 'OBJECT',
-              properties: {
-                youtubeTitle: { type: 'STRING' },
-                youtubeCaption: { type: 'STRING' },
-                youtubeDescription: { type: 'STRING' },
-                youtubeTags: { type: 'STRING' }
-              },
-              required: ['youtubeTitle', 'youtubeCaption', 'youtubeDescription', 'youtubeTags']
-            },
-            scenes: {
-              type: 'ARRAY',
-              items: {
-                type: 'OBJECT',
-                properties: {
-                  sceneNumber: { type: 'INTEGER' },
-                  narratorText: { type: 'STRING' },
-                  visualPrompt: { type: 'STRING' },
-                  duration: { type: 'INTEGER' },
-                  episodeTimestampStart: { type: 'INTEGER' },
-                  dialogues: {
-                    type: 'ARRAY',
-                    items: {
-                      type: 'OBJECT',
-                      properties: {
-                        character: { type: 'STRING' },
-                        text: { type: 'STRING' }
-                      },
-                      required: ['character', 'text']
-                    }
-                  }
-                },
-                required: ['sceneNumber', 'narratorText', 'visualPrompt', 'duration', 'episodeTimestampStart', 'dialogues']
-              }
+      console.log('Generating script storyboard from subtitle file...');
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.5-flash',
+        contents: promptText,
+        config: {
+          responseMimeType: 'application/json',
+          responseSchema: responseSchema
+        }
+      });
+      scriptData = JSON.parse(response.text);
+
+    } else if (['.mp4', '.mkv', '.avi', '.mov', '.mp3', '.wav', '.m4a', '.webm'].includes(fileExt)) {
+      let audioPath = filePath;
+      const isVideo = ['.mp4', '.mkv', '.avi', '.mov', '.webm'].includes(fileExt);
+
+      if (isVideo) {
+        audioPath = path.join(tempDir, `temp_${Date.now()}_extracted.mp3`);
+        await new Promise((resolve, reject) => {
+          ffmpeg(filePath)
+            .noVideo()
+            .audioCodec('libmp3lame')
+            .audioChannels(1)
+            .audioBitrate(32) // Low bitrate downsampling for fast network transfer
+            .on('end', () => resolve())
+            .on('error', (err) => reject(err))
+            .save(audioPath);
+        });
+        fs.unlink(filePath, () => {});
+      } else {
+        // Downsample audio files as well for fast uploads
+        audioPath = path.join(tempDir, `temp_${Date.now()}_downsampled.mp3`);
+        await new Promise((resolve, reject) => {
+          ffmpeg(filePath)
+            .audioCodec('libmp3lame')
+            .audioChannels(1)
+            .audioBitrate(32)
+            .on('end', () => resolve())
+            .on('error', (err) => reject(err))
+            .save(audioPath);
+        });
+        fs.unlink(filePath, () => {});
+      }
+
+      console.log('Generating script storyboard from media audio stream...');
+      const audioBase64 = await fs.promises.readFile(audioPath, { encoding: 'base64' });
+      fs.unlink(audioPath, () => {});
+
+      const animeTitle = originalName.replace(fileExt, '').replace(/[\-_]+/g, ' ');
+      const promptText = `You are a professional anime YouTube summary creator.
+Listen to the attached audio track from the anime episode: "${animeTitle}".
+Create a highly detailed script storyboard describing the sequence of events, dialogue highlights, and narration for this episode.
+
+The script tone must be "${tone}" and in "${language}" language.
+Generate exactly 8 to 12 scenes.
+For each scene, provide:
+1. sceneNumber: sequential index starting from 1.
+2. narratorText: Comprehensive narrator voiceover in the target language.
+3. visualPrompt: A detailed visual description in English of the scenes and storyboard cues.
+4. duration: Estimated duration in seconds (usually 10 to 20 seconds).
+5. episodeTimestampStart: Estimated starting timestamp in seconds.
+6. dialogues: An array of key dialogue quotes of what was said in this scene. Each dialogue contains a "character" field (the name of the character) and a "text" field (the translated quote they spoke).
+
+Also, recommend where to find the raw episode (footageSuggestions).
+
+Also, generate highly optimized YouTube metadata:
+1. youtubeTitle: A clickbaity, high-CTR YouTube video title (under 70 characters).
+2. youtubeCaption: A short clickbaity caption/hook (under 120 characters).
+3. youtubeDescription: An SEO-optimized video description containing details about the anime (ratings, seasons), timestamps, and keywords.
+4. youtubeTags: Comma-separated tags.
+
+Strictly adhere to the JSON output schema.`;
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.5-flash',
+        contents: [
+          {
+            inlineData: {
+              mimeType: 'audio/mp3',
+              data: audioBase64
             }
           },
-          required: ['animeTitle', 'language', 'tone', 'footageSuggestions', 'metadata', 'scenes']
+          promptText
+        ],
+        config: {
+          responseMimeType: 'application/json',
+          responseSchema: responseSchema
         }
-      }
-    });
+      });
+      scriptData = JSON.parse(response.text);
+    } else {
+      fs.unlink(filePath, () => {});
+      return res.status(400).json({ error: 'Unsupported file format.' });
+    }
 
-    const scriptData = JSON.parse(response.text);
     const scriptPayload = {
       animeTitle: `Extracted: ${scriptData.animeTitle}`,
       language: scriptData.language || language,
