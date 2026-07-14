@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Video, Film, Sparkles, AlertCircle, Cpu, 
   Volume2, FileText, Menu, X, Settings, History,
-  ChevronLeft, ChevronRight 
+  ChevronLeft, ChevronRight, Upload, BookOpen
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -15,6 +15,8 @@ import VideoForge from './components/VideoForge';
 import CustomStudio from './components/CustomStudio';
 import EpisodeSummarizer from './components/EpisodeSummarizer';
 import LongVideoForge from './components/LongVideoForge';
+import EpisodeExtractor from './components/EpisodeExtractor';
+import MangaForge from './components/MangaForge';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'https://studio-8m77.onrender.com';
 
@@ -139,6 +141,8 @@ export default function App() {
     { id: 'custom', label: 'Custom Studio', icon: Volume2, color: 'text-cyber-pink' },
     { id: 'video', label: 'Video Forge', icon: Film, color: 'text-cyber-purple' },
     { id: 'summarizer', label: 'Episode Summarizer', icon: FileText, color: 'text-cyber-cyan' },
+    { id: 'extractor', label: 'Episode Extractor', icon: Upload, color: 'text-cyber-purple' },
+    { id: 'manga', label: 'Manga Forge', icon: BookOpen, color: 'text-cyber-cyan' },
     { id: 'longvideo', label: 'Long Video Forge', icon: Video, color: 'text-cyber-pink' }
   ];
 
@@ -411,6 +415,42 @@ export default function App() {
                 exit={{ opacity: 0, y: -10 }}
               >
                 <EpisodeSummarizer 
+                  fetchScripts={fetchScripts} 
+                  scripts={scripts}
+                  activeScript={activeScript}
+                  onSelectScript={handleSelectScript}
+                  onDeleteScript={handleDeleteScript}
+                />
+              </motion.div>
+            )}
+
+            {activeTab === 'extractor' && (
+              /* Episode Extractor View */
+              <motion.div
+                key="extractor-tab"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+              >
+                <EpisodeExtractor 
+                  fetchScripts={fetchScripts} 
+                  scripts={scripts}
+                  activeScript={activeScript}
+                  onSelectScript={handleSelectScript}
+                  onDeleteScript={handleDeleteScript}
+                />
+              </motion.div>
+            )}
+
+            {activeTab === 'manga' && (
+              /* Manga Forge View */
+              <motion.div
+                key="manga-tab"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+              >
+                <MangaForge 
                   fetchScripts={fetchScripts} 
                   scripts={scripts}
                   activeScript={activeScript}

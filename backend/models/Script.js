@@ -24,7 +24,11 @@ const sceneSchema = new mongoose.Schema({
   audioBase64: {
     type: String,
     default: ''
-  }
+  },
+  dialogues: [{
+    character: { type: String, default: '' },
+    text: { type: String, default: '' }
+  }]
 });
 
 const scriptSchema = new mongoose.Schema({
@@ -47,7 +51,7 @@ const scriptSchema = new mongoose.Schema({
   },
   videoType: {
     type: String,
-    enum: ['short', 'long'],
+    enum: ['short', 'long', 'extracted', 'manga'],
     default: 'short'
   },
   audioBase64: {

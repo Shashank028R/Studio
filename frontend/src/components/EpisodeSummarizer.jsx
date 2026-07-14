@@ -681,6 +681,23 @@ export default function EpisodeSummarizer({
                       </p>
                     </div>
 
+                    {/* Dialogue attribution section */}
+                    {scene.dialogues && scene.dialogues.length > 0 && (
+                      <div className="bg-[#05030d] border border-cyan-500/5 rounded-lg p-2.5 space-y-1.5 animate-fade-in">
+                        <span className="text-[8px] font-black text-cyber-pink uppercase tracking-widest block">
+                          📢 Dialogue quotes ("who said what")
+                        </span>
+                        <div className="space-y-1">
+                          {scene.dialogues.map((d, dIdx) => (
+                            <div key={dIdx} className="text-[10px] leading-relaxed">
+                              <span className="text-cyber-cyan font-bold">{d.character}:</span>{' '}
+                              <span className="text-slate-300 italic">"{d.text}"</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
                     <div>
                       <span className="text-[9px] font-black text-cyber-pink uppercase tracking-widest block mb-0.5">
                         Visual scene prompt
