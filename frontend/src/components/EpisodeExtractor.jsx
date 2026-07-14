@@ -210,10 +210,16 @@ export default function EpisodeExtractor({ fetchScripts, scripts, activeScript, 
                   {file ? file.name : 'Select or drag episode file here'}
                 </div>
                 <div className="text-[10px] text-cyber-muted">
-                  Supports SRT, VTT, MP4, MKV, MP3, WAV (Max 50MB)
+                  Supports SRT, VTT, MP4, MKV, MP3, WAV (Max 500MB)
                 </div>
               </div>
             </div>
+
+            {file && file.size > 50 * 1024 * 1024 && (
+              <div className="bg-amber-950/40 border border-amber-500/20 rounded-xl p-3.5 text-[11px] text-amber-200 leading-relaxed animate-fade-in text-left">
+                ⚠️ <strong>Large File Warning ({ (file.size / (1024 * 1024)).toFixed(0) }MB):</strong> Large media uploads can exceed server request timeout rules on hosted platforms like Render (30-second cap). For a fast & completely stable experience, we highly recommend uploading a lightweight <strong>subtitles file (.srt / .vtt)</strong> or a <strong>compressed audio track (.mp3)</strong> instead!
+              </div>
+            )}
 
             {/* Collapsible Settings */}
             <div className="border border-slate-900 rounded-xl overflow-hidden">

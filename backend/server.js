@@ -91,7 +91,8 @@ app.use((req, res, next) => {
   }
   next();
 });
-app.use(express.json());
+app.use(express.json({ limit: '500mb' }));
+app.use(express.urlencoded({ limit: '500mb', extended: true }));
 
 // Serve uploads folder statically for video download/preview
 app.use('/uploads', express.static(uploadsDir));
@@ -108,7 +109,7 @@ const storage = multer.diskStorage({
 });
 const upload = multer({
   storage,
-  limits: { fileSize: 50 * 1024 * 1024 }
+  limits: { fileSize: 500 * 1024 * 1024 }
 });
 
 // Initialize Google Gen AI
