@@ -325,7 +325,11 @@ export default function App() {
                         script={activeScript} 
                         onAudioGenerated={handleAudioGenerated}
                       />
-                      <ScriptViewer script={activeScript} />
+                      <ScriptViewer 
+                        script={activeScript} 
+                        onSelect={handleSelectScript}
+                        fetchScripts={fetchScripts}
+                      />
                     </>
                   ) : (
                     <div className="glass-panel rounded-2xl p-8 text-center border-purple-500/10 flex-1 flex flex-col items-center justify-center min-h-[450px]">

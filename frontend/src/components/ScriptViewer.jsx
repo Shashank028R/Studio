@@ -1,6 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Film, Copy, Check, MessageSquare, Play } from 'lucide-react';
+import { Film, Copy, Check, MessageSquare, Play, Globe, Sparkles, Loader2 } from 'lucide-react';
+
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'https://studio-8m77.onrender.com';
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -17,8 +19,39 @@ const itemVariants = {
   show: { opacity: 1, y: 0, transition: { type: 'spring', bounce: 0.25 } }
 };
 
-export default function ScriptViewer({ script }) {
-  const [copiedIndex, setCopiedIndex] = React.useState(null);
+export default function ScriptViewer({ script, onSelect, fetchScripts }) {
+  const [copiedIndex, setCopiedIndex] = useState(null);
+  const [translationLang, setTranslationLang] = useState('Hindi');
+  const [isTranslating, setIsTranslating] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleTranslateScript = async () => {
+    if (!script) return;
+    setIsTranslating(true);
+    setError('');
+
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/scripts/${script._id}/translate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetLanguage: translationLang })
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Translation failed.');
+      }
+
+      const updatedScript = await response.json();
+      if (onSelect) onSelect(updatedScript);
+      if (fetchScripts) fetchScripts();
+    } catch (err) {
+      console.error(err);
+      setError(err.message || 'Error occurred during translation.');
+    } finally {
+      setIsTranslating(false);
+    }
+  };
 
   if (!script || !script.scenes || script.scenes.length === 0) {
     return (
@@ -66,6 +99,43 @@ export default function ScriptViewer({ script }) {
           <span className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyber-cyan to-cyber-pink">
             {totalDuration}s
           </span>
+        </div>
+      </div>
+
+      {error && (
+        <div className="bg-red-950/60 border border-red-500/30 rounded-xl p-3 text-red-200 text-xs">
+          {error}
+        </div>
+      )}
+
+      {/* Translation Actions */}
+      <div className="bg-[#100b26]/60 border border-purple-500/10 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3 animate-fade-in">
+        <div className="flex items-center gap-2.5">
+          <Globe className="w-5 h-5 text-cyber-cyan" />
+          <div>
+            <span className="text-xs font-bold text-white uppercase tracking-wider block">Translate Script Narration</span>
+            <span className="text-[10px] text-cyber-muted">Translate scenes while preserving visual prompts & pacing</span>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
+          <select
+            value={translationLang}
+            onChange={(e) => setTranslationLang(e.target.value)}
+            disabled={isTranslating}
+            className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-cyber-cyan"
+          >
+            <option value="Hindi">Hindi (हिंदी)</option>
+            <option value="Hinglish">Hinglish (Hindi in Latin script)</option>
+            <option value="English">English</option>
+          </select>
+          <button
+            onClick={handleTranslateScript}
+            disabled={isTranslating}
+            className="flex items-center justify-center gap-1.5 bg-gradient-to-r from-cyan-500 to-purple-600 hover:opacity-90 px-4 py-2 rounded-xl text-xs font-black text-white uppercase transition-all disabled:opacity-50"
+          >
+            {isTranslating ? <Loader2 className="w-3.5 h-3.5 animate-spin text-white" /> : <Sparkles className="w-3.5 h-3.5 text-white" />}
+            <span>{isTranslating ? 'Translating...' : 'Translate'}</span>
+          </button>
         </div>
       </div>
 
