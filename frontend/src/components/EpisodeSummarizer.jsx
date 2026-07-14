@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Sparkles, FileText, Volume2, Loader2, Play, 
   HelpCircle, Settings, CheckCircle, ListTodo, Film,
-  ChevronDown, Copy, Check
+  ChevronDown, Copy, Check, Globe
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import ScriptHistory from './ScriptHistory';
@@ -60,6 +60,46 @@ export default function EpisodeSummarizer({
     } else if (type === 'tags') {
       setCopiedTags(true);
       setTimeout(() => setCopiedTags(false), 2000);
+    }
+  };
+
+  const [translationLang, setTranslationLang] = useState('Hindi');
+  const [isTranslating, setIsTranslating] = useState(false);
+
+  const handleTranslateScript = async () => {
+    if (!generatedScript) return;
+    setIsTranslating(true);
+    setError('');
+    setSuccessMsg(`Translating script narration into ${translationLang}...`);
+
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/scripts/${generatedScript._id}/translate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetLanguage: translationLang })
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Translation failed.');
+      }
+
+      const updatedScript = await response.json();
+      setGeneratedScript(updatedScript);
+      setSuccessMsg(`Script successfully translated to ${translationLang}! Re-synthesize audio below.`);
+
+      confetti({
+        particleCount: 50,
+        spread: 60,
+        colors: ['#00f0ff', '#bd00ff', '#ffffff']
+      });
+
+      if (fetchScripts) fetchScripts();
+    } catch (err) {
+      console.error(err);
+      setError(err.message || 'Error occurred during translation.');
+    } finally {
+      setIsTranslating(false);
     }
   };
 
@@ -448,6 +488,37 @@ export default function EpisodeSummarizer({
                 <span>Language: {generatedScript.language}</span>
                 <span>Tone: {generatedScript.tone}</span>
                 <span>Type: Long Video</span>
+              </div>
+            </div>
+
+            {/* Translation Actions */}
+            <div className="bg-[#100b26]/60 border border-purple-500/10 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3 animate-fade-in">
+              <div className="flex items-center gap-2.5">
+                <Globe className="w-5 h-5 text-cyber-cyan" />
+                <div>
+                  <span className="text-xs font-bold text-white uppercase tracking-wider block">Translate Script Narration</span>
+                  <span className="text-[10px] text-cyber-muted">Translate scenes while preserving timestamps & visual cues</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
+                <select
+                  value={translationLang}
+                  onChange={(e) => setTranslationLang(e.target.value)}
+                  disabled={isTranslating}
+                  className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-cyber-cyan"
+                >
+                  <option value="Hindi">Hindi (हिंदी)</option>
+                  <option value="Hinglish">Hinglish (Hindi in Latin script)</option>
+                  <option value="English">English</option>
+                </select>
+                <button
+                  onClick={handleTranslateScript}
+                  disabled={isTranslating}
+                  className="flex items-center justify-center gap-1.5 bg-gradient-to-r from-cyan-500 to-purple-600 hover:opacity-90 px-4 py-2 rounded-xl text-xs font-black text-white uppercase transition-all disabled:opacity-50"
+                >
+                  {isTranslating ? <Loader2 className="w-3.5 h-3.5 animate-spin text-white" /> : <Sparkles className="w-3.5 h-3.5 text-white" />}
+                  <span>{isTranslating ? 'Translating...' : 'Translate'}</span>
+                </button>
               </div>
             </div>
 

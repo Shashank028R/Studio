@@ -1144,6 +1144,134 @@ app.get('/api/scripts/:id/audio', async (req, res) => {
 });
 
 /**
+ * @route POST /api/scripts/:id/translate
+ * @desc Translate an existing script narration and metadata using Gemini 3.5 Flash
+ */
+app.post('/api/scripts/:id/translate', async (req, res) => {
+  const { targetLanguage } = req.body;
+  if (!targetLanguage) {
+    return res.status(400).json({ error: 'Please specify targetLanguage.' });
+  }
+
+  try {
+    let script;
+    if (isDbConnected()) {
+      script = await Script.findById(req.params.id);
+    } else {
+      script = memoryDb.find(s => s._id === req.params.id);
+    }
+
+    if (!script) {
+      return res.status(404).json({ error: 'Script not found.' });
+    }
+
+    console.log(`Translating script ${script._id} narration into ${targetLanguage}...`);
+
+    // Prepare prompt to translate each scene's narration text using Gemini
+    const scenesTextToTranslate = script.scenes.map(s => `Scene #${s.sceneNumber}: ${s.narratorText}`).join('\n\n');
+
+    const promptText = `You are a professional translator specializing in anime content.
+Translate the narration script of the anime "${script.animeTitle}" into "${targetLanguage}".
+Target Language definitions:
+- Hindi: Translate the script into fluent Hindi, writing in the Devanagari script (e.g. "गोकू ने फ्रीजा को हरा दिया").
+- Hinglish: Translate the script into fluent Hindi but write it using the Latin/English script characters (e.g. "Goku ne Frieza ko hara diya").
+- English: Translate the script into fluent English.
+
+Original scenes:
+${scenesTextToTranslate}
+
+Strictly preserve the original meaning, tone, and pacing of each scene.
+Output a JSON object matching this schema:
+{
+  "scenes": [
+    {
+      "sceneNumber": number,
+      "narratorText": "translated narration text"
+    }
+  ]
+}`;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-3.5-flash',
+      contents: promptText,
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: 'OBJECT',
+          properties: {
+            scenes: {
+              type: 'ARRAY',
+              items: {
+                type: 'OBJECT',
+                properties: {
+                  sceneNumber: { type: 'INTEGER' },
+                  narratorText: { type: 'STRING' }
+                },
+                required: ['sceneNumber', 'narratorText']
+              }
+            }
+          },
+          required: ['scenes']
+        }
+      }
+    });
+
+    const parsedData = JSON.parse(response.text);
+
+    // Apply translations to scenes and clear voice caches
+    parsedData.scenes.forEach(translatedScene => {
+      const originalScene = script.scenes.find(s => s.sceneNumber === translatedScene.sceneNumber);
+      if (originalScene) {
+        originalScene.narratorText = translatedScene.narratorText;
+        originalScene.audioBase64 = ''; // Reset voice track
+      }
+    });
+
+    script.language = targetLanguage;
+    script.audioBase64 = ''; // Reset unified voice track
+
+    // Also update metadata if present
+    if (script.metadata) {
+      const metadataPrompt = `Translate the following YouTube video details into "${targetLanguage}". If Hinglish, use Latin script.
+Title: ${script.metadata.youtubeTitle}
+Caption: ${script.metadata.youtubeCaption}
+Description: ${script.metadata.youtubeDescription}
+
+Output a JSON matching:
+{
+  "youtubeTitle": "translated title",
+  "youtubeCaption": "translated caption",
+  "youtubeDescription": "translated description"
+}`;
+      try {
+        const metadataResponse = await ai.models.generateContent({
+          model: 'gemini-3.5-flash',
+          contents: metadataPrompt,
+          config: { responseMimeType: 'application/json' }
+        });
+        const parsedMetadata = JSON.parse(metadataResponse.text);
+        script.metadata.youtubeTitle = parsedMetadata.youtubeTitle || script.metadata.youtubeTitle;
+        script.metadata.youtubeCaption = parsedMetadata.youtubeCaption || script.metadata.youtubeCaption;
+        script.metadata.youtubeDescription = parsedMetadata.youtubeDescription || script.metadata.youtubeDescription;
+      } catch (metadataError) {
+        console.warn('Metadata translation skipped:', metadataError.message);
+      }
+    }
+
+    if (isDbConnected()) {
+      script.markModified('scenes');
+      if (script.metadata) script.markModified('metadata');
+      await script.save();
+    }
+
+    res.json(script);
+  } catch (error) {
+    console.error('Translation failed:', error);
+    res.status(500).json({ error: error.message || 'Translation pipeline failed.' });
+  }
+});
+
+/**
  * @route GET /api/scripts/:id/scenes/:sceneNum/audio
  * @desc Stream synthesized audio for a specific scene segment of a long script
  */
