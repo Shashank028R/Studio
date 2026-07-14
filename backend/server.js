@@ -1115,6 +1115,7 @@ Strictly adhere to the JSON output schema.`;
             .audioCodec('libmp3lame')
             .audioChannels(1)
             .audioBitrate(32) // Low bitrate downsampling for fast network transfer
+            .duration(60) // Extract only the first 60 seconds for speed
             .on('end', () => resolve())
             .on('error', (err) => reject(err))
             .save(audioPath);
@@ -1128,6 +1129,7 @@ Strictly adhere to the JSON output schema.`;
             .audioCodec('libmp3lame')
             .audioChannels(1)
             .audioBitrate(32)
+            .duration(60) // Limit to first 60 seconds
             .on('end', () => resolve())
             .on('error', (err) => reject(err))
             .save(audioPath);
@@ -1135,14 +1137,14 @@ Strictly adhere to the JSON output schema.`;
         fs.unlink(filePath, () => {});
       }
 
-      console.log('Generating script storyboard from media audio stream...');
+      console.log('Generating script storyboard from media audio sample...');
       const audioBase64 = await fs.promises.readFile(audioPath, { encoding: 'base64' });
       fs.unlink(audioPath, () => {});
 
       const animeTitle = originalName.replace(fileExt, '').replace(/[\-_]+/g, ' ');
       const promptText = `You are a professional anime YouTube summary creator.
-Listen to the attached audio track from the anime episode: "${animeTitle}".
-Create a highly detailed script storyboard describing the sequence of events, dialogue highlights, and narration for this episode.
+We have attached a 60-second audio track sample from the anime episode: "${animeTitle}".
+Use the audio sample to capture the voice, language tone, and style. Combined with your pre-trained knowledge of this specific anime episode ("${animeTitle}"), generate a highly detailed script storyboard describing the sequence of events, dialogue highlights, and narration for the ENTIRE episode.
 
 The script tone must be "${tone}" and in "${language}" language.
 Generate exactly 8 to 12 scenes.
