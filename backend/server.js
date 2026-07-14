@@ -1221,6 +1221,135 @@ Strictly adhere to the JSON output schema.`;
 });
 
 /**
+ * @route POST /api/extract-subtitle-online
+ * @desc Retrieve subtitle/transcript online by using Gemini knowledge of a specific episode
+ */
+app.post('/api/extract-subtitle-online', async (req, res) => {
+  const { animeName, episodeNumber, language = 'English', tone = 'Dramatic' } = req.body;
+
+  if (!animeName || !episodeNumber) {
+    return res.status(400).json({ error: 'Please provide animeName and episodeNumber.' });
+  }
+
+  try {
+    const responseSchema = {
+      type: 'OBJECT',
+      properties: {
+        animeTitle: { type: 'STRING' },
+        language: { type: 'STRING' },
+        tone: { type: 'STRING' },
+        footageSuggestions: { type: 'STRING' },
+        metadata: {
+          type: 'OBJECT',
+          properties: {
+            youtubeTitle: { type: 'STRING' },
+            youtubeCaption: { type: 'STRING' },
+            youtubeDescription: { type: 'STRING' },
+            youtubeTags: { type: 'STRING' }
+          },
+          required: ['youtubeTitle', 'youtubeCaption', 'youtubeDescription', 'youtubeTags']
+        },
+        scenes: {
+          type: 'ARRAY',
+          items: {
+            type: 'OBJECT',
+            properties: {
+              sceneNumber: { type: 'INTEGER' },
+              narratorText: { type: 'STRING' },
+              visualPrompt: { type: 'STRING' },
+              duration: { type: 'INTEGER' },
+              episodeTimestampStart: { type: 'INTEGER' },
+              dialogues: {
+                type: 'ARRAY',
+                items: {
+                  type: 'OBJECT',
+                  properties: {
+                    character: { type: 'STRING' },
+                    text: { type: 'STRING' }
+                  },
+                  required: ['character', 'text']
+                }
+              }
+            },
+            required: ['sceneNumber', 'narratorText', 'visualPrompt', 'duration', 'episodeTimestampStart', 'dialogues']
+          }
+        }
+      },
+      required: ['animeTitle', 'language', 'tone', 'footageSuggestions', 'metadata', 'scenes']
+    };
+
+    console.log(`Auto-fetching script for anime: "${animeName}" Episode ${episodeNumber} via Gemini knowledge...`);
+
+    const promptText = `You are a professional anime subtitle database and YouTube script writer.
+The user wants to extract the script and key dialogues for the specific episode: "${animeName}" Episode ${episodeNumber}.
+
+Using your extensive database of anime plots, scripts, transcripts, and official subtitles:
+Identify this exact episode and reconstruct its chronological narrative, scene descriptions, and dialogue quotes.
+Create a highly detailed script storyboard summarizing the plot of this episode.
+The script tone must be "${tone}" and in "${language}" language.
+Generate exactly 8 to 12 scenes.
+For each scene, provide:
+1. sceneNumber: sequential index starting from 1.
+2. narratorText: Comprehensive narrator voiceover in the target language.
+3. visualPrompt: A detailed visual description in English of the episode scenes and storyboard cues.
+4. duration: Estimated duration in seconds (usually 10 to 20 seconds).
+5. episodeTimestampStart: Estimated starting timestamp in seconds.
+6. dialogues: An array of key dialogue quotes of what was said in this scene. Each dialogue contains a "character" field (the name of the character) and a "text" field (the translated quote they spoke).
+
+Also, recommend where to find the raw episode (footageSuggestions).
+
+Also, generate highly optimized YouTube metadata:
+1. youtubeTitle: A clickbaity, high-CTR YouTube video title (under 70 characters).
+2. youtubeCaption: A short clickbaity caption/hook (under 120 characters).
+3. youtubeDescription: An SEO-optimized video description containing anime details (seasons, ratings), timestamps, and keywords.
+4. youtubeTags: Comma-separated tags.
+
+Strictly adhere to the JSON output schema.`;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-3.5-flash',
+      contents: promptText,
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: responseSchema
+      }
+    });
+
+    const scriptData = JSON.parse(response.text);
+    const scriptPayload = {
+      animeTitle: `Extracted: ${scriptData.animeTitle}`,
+      language: scriptData.language || language,
+      tone: scriptData.tone || tone,
+      videoType: 'extracted',
+      footageSuggestions: scriptData.footageSuggestions || `Sourced online for ${animeName} Ep ${episodeNumber}.`,
+      metadata: scriptData.metadata || {
+        youtubeTitle: `Online: ${scriptData.animeTitle} Episode ${episodeNumber} Summary`,
+        youtubeCaption: `Extracted online episode summary of ${scriptData.animeTitle}.`,
+        youtubeDescription: `Detailed plot summary breakdown.`,
+        youtubeTags: 'anime, summary, extracted'
+      },
+      scenes: scriptData.scenes,
+      createdAt: new Date()
+    };
+
+    let result;
+    if (isDbConnected()) {
+      const newScript = new Script(scriptPayload);
+      result = await newScript.save();
+    } else {
+      scriptPayload._id = `extracted_${Date.now()}`;
+      memoryDb.push(scriptPayload);
+      result = scriptPayload;
+    }
+
+    res.json(result);
+  } catch (error) {
+    console.error('Online subtitle fetch failed:', error);
+    res.status(500).json({ error: error.message || 'Failed to auto-fetch episode subtitles online.' });
+  }
+});
+
+/**
  * @route POST /api/generate-manga-script
  * @desc Generate script storyboard by manga chapter numbers range or uploaded panels
  */

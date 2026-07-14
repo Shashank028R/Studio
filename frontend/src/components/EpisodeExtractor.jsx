@@ -17,6 +17,10 @@ export default function EpisodeExtractor({ fetchScripts, scripts, activeScript, 
   const [showSettings, setShowSettings] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
+  const [sourceTab, setSourceTab] = useState('upload'); // 'upload' or 'online'
+  const [animeName, setAnimeName] = useState('');
+  const [episodeNumber, setEpisodeNumber] = useState('');
+
   const [generatedScript, setGeneratedScript] = useState(null);
   const [successMsg, setSuccessMsg] = useState('');
   const [error, setError] = useState('');
@@ -112,6 +116,52 @@ export default function EpisodeExtractor({ fetchScripts, scripts, activeScript, 
     }
   };
 
+  const handleOnlineSubmit = async (e) => {
+    e.preventDefault();
+    if (!animeName || !episodeNumber) return;
+
+    setIsLoading(true);
+    setError('');
+    setSuccessMsg(`Auto-fetching & extracting transcript online for "${animeName}" Ep ${episodeNumber}...`);
+
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/extract-subtitle-online`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          animeName,
+          episodeNumber,
+          language,
+          tone
+        })
+      });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || 'Failed to auto-fetch subtitles online.');
+      }
+
+      const scriptData = await response.json();
+      setGeneratedScript(scriptData);
+      onSelectScript(scriptData);
+      setSuccessMsg('Subtitles successfully fetched and script compiled!');
+      
+      confetti({
+        particleCount: 80,
+        spread: 70,
+        origin: { y: 0.6 },
+        colors: ['#00ffff', '#d946ef', '#ffffff']
+      });
+
+      if (fetchScripts) fetchScripts();
+    } catch (err) {
+      console.error(err);
+      setError(err.message || 'Error occurred during subtitle retrieval.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleTranslateScript = async () => {
     if (!generatedScript) return;
     setIsTranslating(true);
@@ -194,30 +244,85 @@ export default function EpisodeExtractor({ fetchScripts, scripts, activeScript, 
             Simply upload your episode video, raw audio, or subtitles (SRT) to automatically forge scripts and characters dialogue timeline.
           </p>
 
-          <form onSubmit={handleUploadSubmit} className="space-y-4">
-            {/* File Drag & Drop block */}
-            <div className="border border-dashed border-slate-800 hover:border-cyber-cyan/50 rounded-2xl p-6 bg-slate-950/40 text-center cursor-pointer transition-all relative group">
-              <input 
-                type="file" 
-                id="episode-file-picker" 
-                onChange={handleFileChange}
-                accept=".srt,.vtt,.txt,.mp4,.mkv,.avi,.mov,.mp3,.wav,.m4a,.webm"
-                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-              />
-              <div className="space-y-2">
-                <Upload className="w-8 h-8 text-cyber-muted mx-auto group-hover:text-cyber-cyan transition-colors" />
-                <div className="text-xs font-semibold text-slate-300">
-                  {file ? file.name : 'Select or drag episode file here'}
-                </div>
-                <div className="text-[10px] text-cyber-muted">
-                  Supports SRT, VTT, MP4, MKV, MP3, WAV (Max 500MB)
-                </div>
-              </div>
-            </div>
+          {/* Source Tabs Selector */}
+          <div className="grid grid-cols-2 gap-2 p-1 bg-slate-950/60 rounded-xl border border-slate-900 mb-4 select-none">
+            <button
+              type="button"
+              onClick={() => setSourceTab('upload')}
+              className={`py-2 px-3 rounded-lg text-xs font-bold transition-all uppercase tracking-wider ${
+                sourceTab === 'upload'
+                  ? 'bg-gradient-to-r from-cyan-500 to-purple-600 text-white shadow-md'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              Upload File
+            </button>
+            <button
+              type="button"
+              onClick={() => setSourceTab('online')}
+              className={`py-2 px-3 rounded-lg text-xs font-bold transition-all uppercase tracking-wider ${
+                sourceTab === 'online'
+                  ? 'bg-gradient-to-r from-cyan-500 to-purple-600 text-white shadow-md'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              Auto-Fetch Online
+            </button>
+          </div>
 
-            {file && file.size > 50 * 1024 * 1024 && (
-              <div className="bg-amber-950/40 border border-amber-500/20 rounded-xl p-3.5 text-[11px] text-amber-200 leading-relaxed animate-fade-in text-left">
-                ⚠️ <strong>Large File Warning ({ (file.size / (1024 * 1024)).toFixed(0) }MB):</strong> Large media uploads can exceed server request timeout rules on hosted platforms like Render (30-second cap). For a fast & completely stable experience, we highly recommend uploading a lightweight <strong>subtitles file (.srt / .vtt)</strong> or a <strong>compressed audio track (.mp3)</strong> instead!
+          <form onSubmit={sourceTab === 'upload' ? handleUploadSubmit : handleOnlineSubmit} className="space-y-4">
+            {sourceTab === 'upload' ? (
+              <>
+                {/* File Drag & Drop block */}
+                <div className="border border-dashed border-slate-800 hover:border-cyber-cyan/50 rounded-2xl p-6 bg-slate-950/40 text-center cursor-pointer transition-all relative group">
+                  <input 
+                    type="file" 
+                    id="episode-file-picker" 
+                    onChange={handleFileChange}
+                    accept=".srt,.vtt,.txt,.mp4,.mkv,.avi,.mov,.mp3,.wav,.m4a,.webm"
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  />
+                  <div className="space-y-2">
+                    <Upload className="w-8 h-8 text-cyber-muted mx-auto group-hover:text-cyber-cyan transition-colors" />
+                    <div className="text-xs font-semibold text-slate-300">
+                      {file ? file.name : 'Select or drag episode file here'}
+                    </div>
+                    <div className="text-[10px] text-cyber-muted">
+                      Supports SRT, VTT, MP4, MKV, MP3, WAV (Max 500MB)
+                    </div>
+                  </div>
+                </div>
+
+                {file && file.size > 50 * 1024 * 1024 && (
+                  <div className="bg-amber-950/40 border border-amber-500/20 rounded-xl p-3.5 text-[11px] text-amber-200 leading-relaxed animate-fade-in text-left">
+                    ⚠️ <strong>Large File Warning ({ (file.size / (1024 * 1024)).toFixed(0) }MB):</strong> Large media uploads can exceed server request timeout rules on hosted platforms like Render (30-second cap). For a fast & completely stable experience, we highly recommend uploading a lightweight <strong>subtitles file (.srt / .vtt)</strong> or a <strong>compressed audio track (.mp3)</strong> instead!
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="space-y-3 animate-fade-in text-left">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-cyber-cyan uppercase tracking-wider block">Anime Name</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Naruto, Jujutsu Kaisen, One Piece"
+                    value={animeName}
+                    onChange={(e) => setAnimeName(e.target.value)}
+                    required
+                    className="w-full bg-slate-950/80 border border-slate-800 focus:border-cyber-cyan rounded-xl px-4 py-3 text-xs text-white focus:outline-none transition-all placeholder:text-slate-600"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-cyber-cyan uppercase tracking-wider block">Episode Number</label>
+                  <input
+                    type="number"
+                    placeholder="e.g. 1"
+                    value={episodeNumber}
+                    onChange={(e) => setEpisodeNumber(e.target.value)}
+                    required
+                    className="w-full bg-slate-950/80 border border-slate-800 focus:border-cyber-cyan rounded-xl px-4 py-3 text-xs text-white focus:outline-none transition-all placeholder:text-slate-600"
+                  />
+                </div>
               </div>
             )}
 
@@ -277,11 +382,16 @@ export default function EpisodeExtractor({ fetchScripts, scripts, activeScript, 
 
             <button
               type="submit"
-              disabled={isLoading || !file}
+              disabled={isLoading || (sourceTab === 'upload' ? !file : (!animeName || !episodeNumber))}
               className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-cyan-500 to-purple-600 hover:opacity-90 disabled:opacity-50 text-xs font-black text-white uppercase tracking-wider py-3.5 rounded-xl shadow-lg transition-all"
             >
               {isLoading ? <Loader2 className="w-4 h-4 animate-spin text-white" /> : <Sparkles className="w-4 h-4 text-white" />}
-              <span>{isLoading ? 'Extracting script...' : 'Extract Script'}</span>
+              <span>
+                {isLoading 
+                  ? (sourceTab === 'upload' ? 'Extracting script...' : 'Retrieving online subtitles...')
+                  : (sourceTab === 'upload' ? 'Extract Script' : 'Fetch & Extract Script')
+                }
+              </span>
             </button>
           </form>
         </div>
