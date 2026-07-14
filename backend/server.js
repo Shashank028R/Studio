@@ -1352,6 +1352,184 @@ Strictly adhere to the JSON output schema.`;
 });
 
 /**
+ * @route POST /api/translate-video
+ * @desc Upload generic video and translate/recreate its script and storyboard into another language
+ */
+app.post('/api/translate-video', upload.single('file'), async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: 'No file uploaded.' });
+  }
+
+  const { language = 'Hindi', tone = 'Dramatic' } = req.body;
+  const originalName = req.file.originalname;
+  const filePath = req.file.path;
+  const fileExt = path.extname(originalName).toLowerCase();
+
+  try {
+    let audioPath = filePath;
+    const isVideo = ['.mp4', '.mkv', '.avi', '.mov', '.webm'].includes(fileExt);
+
+    if (isVideo) {
+      audioPath = path.join(tempDir, `temp_${Date.now()}_translated.mp3`);
+      await new Promise((resolve, reject) => {
+        ffmpeg(filePath)
+          .noVideo()
+          .audioCodec('libmp3lame')
+          .audioChannels(1)
+          .audioBitrate(32) // Low bitrate downsampling for fast network transfer
+          .duration(60) // Extract only first 60s for high performance
+          .on('end', () => resolve())
+          .on('error', (err) => reject(err))
+          .save(audioPath);
+      });
+      fs.unlink(filePath, () => {});
+    } else if (['.mp3', '.wav', '.m4a'].includes(fileExt)) {
+      audioPath = path.join(tempDir, `temp_${Date.now()}_downsampled.mp3`);
+      await new Promise((resolve, reject) => {
+        ffmpeg(filePath)
+          .audioCodec('libmp3lame')
+          .audioChannels(1)
+          .audioBitrate(32)
+          .duration(60)
+          .on('end', () => resolve())
+          .on('error', (err) => reject(err))
+          .save(audioPath);
+      });
+      fs.unlink(filePath, () => {});
+    } else {
+      fs.unlink(filePath, () => {});
+      return res.status(400).json({ error: 'Unsupported file format.' });
+    }
+
+    console.log('Generating translated script storyboard via Gemini...');
+    const audioBase64 = await fs.promises.readFile(audioPath, { encoding: 'base64' });
+    fs.unlink(audioPath, () => {});
+
+    const videoTitle = originalName.replace(fileExt, '').replace(/[\-_]+/g, ' ');
+
+    const responseSchema = {
+      type: 'OBJECT',
+      properties: {
+        animeTitle: { type: 'STRING' },
+        language: { type: 'STRING' },
+        tone: { type: 'STRING' },
+        footageSuggestions: { type: 'STRING' },
+        metadata: {
+          type: 'OBJECT',
+          properties: {
+            youtubeTitle: { type: 'STRING' },
+            youtubeCaption: { type: 'STRING' },
+            youtubeDescription: { type: 'STRING' },
+            youtubeTags: { type: 'STRING' }
+          },
+          required: ['youtubeTitle', 'youtubeCaption', 'youtubeDescription', 'youtubeTags']
+        },
+        scenes: {
+          type: 'ARRAY',
+          items: {
+            type: 'OBJECT',
+            properties: {
+              sceneNumber: { type: 'INTEGER' },
+              narratorText: { type: 'STRING' },
+              visualPrompt: { type: 'STRING' },
+              duration: { type: 'INTEGER' },
+              episodeTimestampStart: { type: 'INTEGER' },
+              dialogues: {
+                type: 'ARRAY',
+                items: {
+                  type: 'OBJECT',
+                  properties: {
+                    character: { type: 'STRING' },
+                    text: { type: 'STRING' }
+                  },
+                  required: ['character', 'text']
+                }
+              }
+            },
+            required: ['sceneNumber', 'narratorText', 'visualPrompt', 'duration', 'episodeTimestampStart', 'dialogues']
+          }
+        }
+      },
+      required: ['animeTitle', 'language', 'tone', 'footageSuggestions', 'metadata', 'scenes']
+    };
+
+    const promptText = `You are a professional video translator, re-creator, and scriptwriter.
+We have attached a 60-second audio track sample from the video file named: "${videoTitle}".
+Analyze the audio sample to capture the tone, context, topic, language, and narration style.
+Then, translate and recreate the full narration script and visual storyboard for this video in the target language "${language}" and structured in a "${tone}" tone.
+
+Generate exactly 8 to 12 scenes covering the entire flow.
+For each scene, provide:
+1. sceneNumber: sequential index starting from 1.
+2. narratorText: Translated narrator voiceover in "${language}".
+3. visualPrompt: A detailed visual description in English of the storyboard cues.
+4. duration: Estimated duration in seconds.
+5. episodeTimestampStart: Estimated starting timestamp in seconds.
+6. dialogues: An array of translated key character quotes or speaker comments spoken in this scene. Each dialogue contains a "character" field (the name of the character/speaker) and a "text" field (the translated comment).
+
+Also, recommend footage suggestions (footageSuggestions) for B-rolls.
+
+Also, generate highly optimized YouTube metadata translated into the target language "${language}":
+1. youtubeTitle: Clickbaity title under 70 characters.
+2. youtubeCaption: Short clickbaity caption hook under 120 characters.
+3. youtubeDescription: SEO description containing video summaries, chapter sections, ratings (if any), and keywords.
+4. youtubeTags: Comma-separated tags.
+
+Strictly adhere to the JSON output schema.`;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-3.5-flash',
+      contents: [
+        {
+          inlineData: {
+            mimeType: 'audio/mp3',
+            data: audioBase64
+          }
+        },
+        promptText
+      ],
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: responseSchema
+      }
+    });
+
+    const scriptData = JSON.parse(response.text);
+    const scriptPayload = {
+      animeTitle: `Translated: ${scriptData.animeTitle}`,
+      language: scriptData.language || language,
+      tone: scriptData.tone || tone,
+      videoType: 'translated',
+      footageSuggestions: scriptData.footageSuggestions || 'Use B-rolls related to the translated video topic.',
+      metadata: scriptData.metadata || {
+        youtubeTitle: `Translated: ${scriptData.animeTitle}`,
+        youtubeCaption: `Translated video summary.`,
+        youtubeDescription: `Detailed translated video description.`,
+        youtubeTags: 'video, translation, dubbing'
+      },
+      scenes: scriptData.scenes,
+      createdAt: new Date()
+    };
+
+    let result;
+    if (isDbConnected()) {
+      const newScript = new Script(scriptPayload);
+      result = await newScript.save();
+    } else {
+      scriptPayload._id = `translated_${Date.now()}`;
+      memoryDb.push(scriptPayload);
+      result = scriptPayload;
+    }
+
+    res.json(result);
+  } catch (error) {
+    console.error('Video translation failed:', error);
+    fs.unlink(filePath, () => {});
+    res.status(500).json({ error: error.message || 'Failed to translate video script.' });
+  }
+});
+
+/**
  * @route POST /api/generate-manga-script
  * @desc Generate script storyboard by manga chapter numbers range or uploaded panels
  */

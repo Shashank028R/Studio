@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Video, Film, Sparkles, AlertCircle, Cpu, 
   Volume2, FileText, Menu, X, Settings, History,
-  ChevronLeft, ChevronRight, Upload, BookOpen
+  ChevronLeft, ChevronRight, Upload, BookOpen, RefreshCw
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -17,6 +17,7 @@ import EpisodeSummarizer from './components/EpisodeSummarizer';
 import LongVideoForge from './components/LongVideoForge';
 import EpisodeExtractor from './components/EpisodeExtractor';
 import MangaForge from './components/MangaForge';
+import VideoRecreator from './components/VideoRecreator';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'https://studio-8m77.onrender.com';
 
@@ -142,6 +143,7 @@ export default function App() {
     { id: 'video', label: 'Video Forge', icon: Film, color: 'text-cyber-purple' },
     { id: 'summarizer', label: 'Episode Summarizer', icon: FileText, color: 'text-cyber-cyan' },
     { id: 'extractor', label: 'Episode Extractor', icon: Upload, color: 'text-cyber-purple' },
+    { id: 'recreator', label: 'Video Recreator', icon: RefreshCw, color: 'text-cyber-pink' },
     { id: 'manga', label: 'Manga Forge', icon: BookOpen, color: 'text-cyber-cyan' },
     { id: 'longvideo', label: 'Long Video Forge', icon: Video, color: 'text-cyber-pink' }
   ];
@@ -433,6 +435,24 @@ export default function App() {
                 exit={{ opacity: 0, y: -10 }}
               >
                 <EpisodeExtractor 
+                  fetchScripts={fetchScripts} 
+                  scripts={scripts}
+                  activeScript={activeScript}
+                  onSelectScript={handleSelectScript}
+                  onDeleteScript={handleDeleteScript}
+                />
+              </motion.div>
+            )}
+
+            {activeTab === 'recreator' && (
+              /* Video Recreator View */
+              <motion.div
+                key="recreator-tab"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+              >
+                <VideoRecreator
                   fetchScripts={fetchScripts} 
                   scripts={scripts}
                   activeScript={activeScript}

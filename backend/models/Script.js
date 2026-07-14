@@ -51,7 +51,7 @@ const scriptSchema = new mongoose.Schema({
   },
   videoType: {
     type: String,
-    enum: ['short', 'long', 'extracted', 'manga'],
+    enum: ['short', 'long', 'extracted', 'manga', 'translated'],
     default: 'short'
   },
   audioBase64: {
