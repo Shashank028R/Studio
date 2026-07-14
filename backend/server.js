@@ -1368,21 +1368,34 @@ app.post('/api/translate-video', upload.single('file'), async (req, res) => {
   try {
     let audioPath = filePath;
     const isVideo = ['.mp4', '.mkv', '.avi', '.mov', '.webm'].includes(fileExt);
+    let audioBase64 = null;
+    let isSilentVideo = false;
 
     if (isVideo) {
       audioPath = path.join(tempDir, `temp_${Date.now()}_translated.mp3`);
-      await new Promise((resolve, reject) => {
+      const extractSuccess = await new Promise((resolve) => {
         ffmpeg(filePath)
           .noVideo()
           .audioCodec('libmp3lame')
           .audioChannels(1)
           .audioBitrate(32) // Low bitrate downsampling for fast network transfer
           .duration(60) // Extract only first 60s for high performance
-          .on('end', () => resolve())
-          .on('error', (err) => reject(err))
+          .on('end', () => resolve(true))
+          .on('error', (err) => {
+            console.warn('FFmpeg extraction warning (possibly silent or no audio stream):', err.message);
+            resolve(false);
+          })
           .save(audioPath);
       });
       fs.unlink(filePath, () => {});
+
+      if (extractSuccess) {
+        audioBase64 = await fs.promises.readFile(audioPath, { encoding: 'base64' });
+        fs.unlink(audioPath, () => {});
+      } else {
+        isSilentVideo = true;
+        fs.unlink(audioPath, () => {});
+      }
     } else if (['.mp3', '.wav', '.m4a'].includes(fileExt)) {
       audioPath = path.join(tempDir, `temp_${Date.now()}_downsampled.mp3`);
       await new Promise((resolve, reject) => {
@@ -1396,15 +1409,14 @@ app.post('/api/translate-video', upload.single('file'), async (req, res) => {
           .save(audioPath);
       });
       fs.unlink(filePath, () => {});
+      audioBase64 = await fs.promises.readFile(audioPath, { encoding: 'base64' });
+      fs.unlink(audioPath, () => {});
     } else {
       fs.unlink(filePath, () => {});
       return res.status(400).json({ error: 'Unsupported file format.' });
     }
 
     console.log('Generating translated script storyboard via Gemini...');
-    const audioBase64 = await fs.promises.readFile(audioPath, { encoding: 'base64' });
-    fs.unlink(audioPath, () => {});
-
     const videoTitle = originalName.replace(fileExt, '').replace(/[\-_]+/g, ' ');
 
     const responseSchema = {
@@ -1453,7 +1465,15 @@ app.post('/api/translate-video', upload.single('file'), async (req, res) => {
       required: ['animeTitle', 'language', 'tone', 'footageSuggestions', 'metadata', 'scenes']
     };
 
-    const promptText = `You are a professional video translator, re-creator, and scriptwriter.
+    let promptContents = [];
+    if (audioBase64) {
+      promptContents.push({
+        inlineData: {
+          mimeType: 'audio/mp3',
+          data: audioBase64
+        }
+      });
+      promptContents.push(`You are a professional video translator, re-creator, and scriptwriter.
 We have attached a 60-second audio track sample from the video file named: "${videoTitle}".
 Analyze the audio sample to capture the tone, context, topic, language, and narration style.
 Then, translate and recreate the full narration script and visual storyboard for this video in the target language "${language}" and structured in a "${tone}" tone.
@@ -1475,19 +1495,35 @@ Also, generate highly optimized YouTube metadata translated into the target lang
 3. youtubeDescription: SEO description containing video summaries, chapter sections, ratings (if any), and keywords.
 4. youtubeTags: Comma-separated tags.
 
-Strictly adhere to the JSON output schema.`;
+Strictly adhere to the JSON output schema.`);
+    } else {
+      promptContents.push(`You are a professional video translator, re-creator, and scriptwriter.
+The user uploaded a video file named: "${videoTitle}". Note that this video does not contain any voice or audio track.
+Based on the video title, file name clues, and theme of "${videoTitle}", creatively forge a complete detailed narration script and visual storyboard for this video in the target language "${language}" and structured in a "${tone}" tone.
+
+Generate exactly 8 to 12 scenes covering the entire narrative flow.
+For each scene, provide:
+1. sceneNumber: sequential index starting from 1.
+2. narratorText: Creative narrator voiceover in "${language}" describing the events.
+3. visualPrompt: A detailed visual description in English of the scene storyboard.
+4. duration: Estimated duration in seconds.
+5. episodeTimestampStart: Estimated starting timestamp in seconds.
+6. dialogues: An array of creative dialogue quotes or characters comments appropriate for this scene. Each dialogue contains a "character" field and a "text" field.
+
+Also, recommend footage suggestions (footageSuggestions) for B-rolls.
+
+Also, generate highly optimized YouTube metadata translated into the target language "${language}":
+1. youtubeTitle: Clickbaity title under 70 characters.
+2. youtubeCaption: Short clickbaity caption hook under 120 characters.
+3. youtubeDescription: SEO description containing video summaries, keywords, and topics.
+4. youtubeTags: Comma-separated tags.
+
+Strictly adhere to the JSON output schema.`);
+    }
 
     const response = await ai.models.generateContent({
       model: 'gemini-3.5-flash',
-      contents: [
-        {
-          inlineData: {
-            mimeType: 'audio/mp3',
-            data: audioBase64
-          }
-        },
-        promptText
-      ],
+      contents: promptContents,
       config: {
         responseMimeType: 'application/json',
         responseSchema: responseSchema
