@@ -19,6 +19,7 @@ export default function EpisodeExtractor({ fetchScripts, scripts, activeScript, 
 
   const [sourceTab, setSourceTab] = useState('upload'); // 'upload' or 'online'
   const [animeName, setAnimeName] = useState('');
+  const [seasonNumber, setSeasonNumber] = useState('1');
   const [episodeNumber, setEpisodeNumber] = useState('');
 
   const [generatedScript, setGeneratedScript] = useState(null);
@@ -118,11 +119,11 @@ export default function EpisodeExtractor({ fetchScripts, scripts, activeScript, 
 
   const handleOnlineSubmit = async (e) => {
     e.preventDefault();
-    if (!animeName || !episodeNumber) return;
+    if (!animeName || !seasonNumber || !episodeNumber) return;
 
     setIsLoading(true);
     setError('');
-    setSuccessMsg(`Auto-fetching & extracting transcript online for "${animeName}" Ep ${episodeNumber}...`);
+    setSuccessMsg(`Auto-fetching & extracting transcript online for "${animeName}" Season ${seasonNumber} Ep ${episodeNumber}...`);
 
     try {
       const response = await fetch(`${BACKEND_URL}/api/extract-subtitle-online`, {
@@ -130,6 +131,7 @@ export default function EpisodeExtractor({ fetchScripts, scripts, activeScript, 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           animeName,
+          seasonNumber,
           episodeNumber,
           language,
           tone
@@ -312,16 +314,29 @@ export default function EpisodeExtractor({ fetchScripts, scripts, activeScript, 
                     className="w-full bg-slate-950/80 border border-slate-800 focus:border-cyber-cyan rounded-xl px-4 py-3 text-xs text-white focus:outline-none transition-all placeholder:text-slate-600"
                   />
                 </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-cyber-cyan uppercase tracking-wider block">Episode Number</label>
-                  <input
-                    type="number"
-                    placeholder="e.g. 1"
-                    value={episodeNumber}
-                    onChange={(e) => setEpisodeNumber(e.target.value)}
-                    required
-                    className="w-full bg-slate-950/80 border border-slate-800 focus:border-cyber-cyan rounded-xl px-4 py-3 text-xs text-white focus:outline-none transition-all placeholder:text-slate-600"
-                  />
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-cyber-cyan uppercase tracking-wider block">Season Number</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. 1, 2, Shippuden"
+                      value={seasonNumber}
+                      onChange={(e) => setSeasonNumber(e.target.value)}
+                      required
+                      className="w-full bg-slate-950/80 border border-slate-800 focus:border-cyber-cyan rounded-xl px-4 py-3 text-xs text-white focus:outline-none transition-all placeholder:text-slate-600"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-cyber-cyan uppercase tracking-wider block">Episode Number</label>
+                    <input
+                      type="number"
+                      placeholder="e.g. 1"
+                      value={episodeNumber}
+                      onChange={(e) => setEpisodeNumber(e.target.value)}
+                      required
+                      className="w-full bg-slate-950/80 border border-slate-800 focus:border-cyber-cyan rounded-xl px-4 py-3 text-xs text-white focus:outline-none transition-all placeholder:text-slate-600"
+                    />
+                  </div>
                 </div>
               </div>
             )}
@@ -382,7 +397,7 @@ export default function EpisodeExtractor({ fetchScripts, scripts, activeScript, 
 
             <button
               type="submit"
-              disabled={isLoading || (sourceTab === 'upload' ? !file : (!animeName || !episodeNumber))}
+              disabled={isLoading || (sourceTab === 'upload' ? !file : (!animeName || !seasonNumber || !episodeNumber))}
               className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-cyan-500 to-purple-600 hover:opacity-90 disabled:opacity-50 text-xs font-black text-white uppercase tracking-wider py-3.5 rounded-xl shadow-lg transition-all"
             >
               {isLoading ? <Loader2 className="w-4 h-4 animate-spin text-white" /> : <Sparkles className="w-4 h-4 text-white" />}

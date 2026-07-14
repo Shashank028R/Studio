@@ -1227,7 +1227,7 @@ Strictly adhere to the JSON output schema.`;
  * @desc Retrieve subtitle/transcript online by using Gemini knowledge of a specific episode
  */
 app.post('/api/extract-subtitle-online', async (req, res) => {
-  const { animeName, episodeNumber, language = 'English', tone = 'Dramatic' } = req.body;
+  const { animeName, seasonNumber = '1', episodeNumber, language = 'English', tone = 'Dramatic' } = req.body;
 
   if (!animeName || !episodeNumber) {
     return res.status(400).json({ error: 'Please provide animeName and episodeNumber.' });
@@ -1280,10 +1280,10 @@ app.post('/api/extract-subtitle-online', async (req, res) => {
       required: ['animeTitle', 'language', 'tone', 'footageSuggestions', 'metadata', 'scenes']
     };
 
-    console.log(`Auto-fetching script for anime: "${animeName}" Episode ${episodeNumber} via Gemini knowledge...`);
+    console.log(`Auto-fetching script for anime: "${animeName}" Season ${seasonNumber} Episode ${episodeNumber} via Gemini knowledge...`);
 
     const promptText = `You are a professional anime subtitle database and YouTube script writer.
-The user wants to extract the script and key dialogues for the specific episode: "${animeName}" Episode ${episodeNumber}.
+The user wants to extract the script and key dialogues for the specific episode: "${animeName}" Season ${seasonNumber} Episode ${episodeNumber}.
 
 Using your extensive database of anime plots, scripts, transcripts, and official subtitles:
 Identify this exact episode and reconstruct its chronological narrative, scene descriptions, and dialogue quotes.
@@ -1319,13 +1319,13 @@ Strictly adhere to the JSON output schema.`;
 
     const scriptData = JSON.parse(response.text);
     const scriptPayload = {
-      animeTitle: `Extracted: ${scriptData.animeTitle}`,
+      animeTitle: `Extracted: ${scriptData.animeTitle} - S${seasonNumber} Ep ${episodeNumber}`,
       language: scriptData.language || language,
       tone: scriptData.tone || tone,
       videoType: 'extracted',
-      footageSuggestions: scriptData.footageSuggestions || `Sourced online for ${animeName} Ep ${episodeNumber}.`,
+      footageSuggestions: scriptData.footageSuggestions || `Sourced online for ${animeName} Season ${seasonNumber} Episode ${episodeNumber}.`,
       metadata: scriptData.metadata || {
-        youtubeTitle: `Online: ${scriptData.animeTitle} Episode ${episodeNumber} Summary`,
+        youtubeTitle: `Online: ${scriptData.animeTitle} S${seasonNumber} Ep ${episodeNumber} Summary`,
         youtubeCaption: `Extracted online episode summary of ${scriptData.animeTitle}.`,
         youtubeDescription: `Detailed plot summary breakdown.`,
         youtubeTags: 'anime, summary, extracted'
