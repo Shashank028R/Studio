@@ -871,7 +871,7 @@ app.post('/api/render-video', upload.single('video'), async (req, res) => {
  * @desc Generate long-form narration summaries of specific anime episodes using Gemini 3.5 Flash
  */
 app.post('/api/generate-long-script', async (req, res) => {
-  const { animeTitle, seasonNumber, episodeNumber, language, tone } = req.body;
+  const { animeTitle, seasonNumber, episodeNumber, language, tone, narrativeMode = 'standard' } = req.body;
 
   if (!animeTitle || !seasonNumber || !episodeNumber || !language || !tone) {
     return res.status(400).json({ error: 'Please provide animeTitle, seasonNumber, episodeNumber, language, and tone.' });
@@ -882,27 +882,56 @@ app.post('/api/generate-long-script', async (req, res) => {
   }
 
   try {
-    const promptText = `You are a professional anime YouTube summary creator.
-Create a highly detailed, engaging long-form narration script summarizing the ENTIRE plot of "${animeTitle}" Season ${seasonNumber} Episode ${episodeNumber}.
+    let promptText = '';
+    if (narrativeMode === 'deep') {
+      promptText = `You are a professional anime YouTube summary creator and explainer.
+Create a highly detailed, frame-by-frame, long-form narration script explaining the ENTIRE plot of "${animeTitle}" Season ${seasonNumber} Episode ${episodeNumber}.
+Do NOT take any shortcuts. The script narration must explain the whole episode frame-by-frame and who said what.
+Generate exactly 18 to 22 scenes covering every major cut, action, and dialogue in chronological order.
+The total duration of all narration combined must be at least 8 to 10 minutes long (each scene should have around 80 to 120 words of narrator text and last 25 to 35 seconds).
 The script tone must be "${tone}" and in "${language}" language.
-Generate exactly 8 to 12 scenes.
+
 For each scene, provide:
 1. sceneNumber: sequential index starting from 1.
-2. narratorText: Comprehensive narrator voiceover explaining the plot events of this segment. If the language is Hindi, it must be written in Hindi (Devnagari script).
-3. visualPrompt: A detailed visual description in English of what should be shown on screen from the episode (e.g. "Goku charging a spirit bomb, massive blue energy sphere, rocks floating, landscape shot").
-4. duration: Estimated duration of this scene in seconds (usually 10 to 20 seconds).
-5. episodeTimestampStart: The exact starting timestamp (integer in seconds, relative to the episode start) where this scene's events occur in the episode. Distribute these timestamps evenly across a standard 20-minute episode (between 60 and 1200 seconds) to cover the entire episode.
+2. narratorText: An extremely comprehensive, thorough narrator voiceover segment (at least 80-120 words) explaining exactly what is happening in this segment and who is saying what. If the language is Hindi, it must be written in Devanagari script.
+3. visualPrompt: A detailed visual description in English of the scenes and visual cues.
+4. duration: Estimated duration of this scene in seconds (usually 25 to 35 seconds to reach 8-10 mins total).
+5. episodeTimestampStart: The starting timestamp (integer in seconds, relative to the episode start) where this scene's events occur in the episode. Distribute these timestamps evenly across a standard 20-minute episode timeline.
 6. dialogues: An array of key dialogue quotes of what was said in this scene. Each dialogue contains a "character" field (the name of the character) and a "text" field (the translated quote they spoke).
 
 Also, recommend where to find the raw episode (footageSuggestions field).
 
-Also, generate highly optimized YouTube metadata for this long summary video under the 'metadata' field:
+Also, generate highly optimized YouTube metadata:
 1. youtubeTitle: A clickbaity, high-CTR YouTube video title (under 70 characters).
 2. youtubeCaption: A short clickbaity caption/hook (under 120 characters) for video sharing, shorts teaser, or title extension.
-3. youtubeDescription: An SEO-optimized video description. You MUST include specific details about the anime: the Anime Name, Total Seasons of this anime series, and its official/overall Ratings (IMDb or MAL rating score e.g. "IMDb: 8.6/10"), followed by a brief overview of the plot, keywords, and a timestamp/chapter breakdown of all scenes.
-4. youtubeTags: A comma-separated list of highly relevant tags.
+3. youtubeDescription: An SEO-optimized video description containing anime details (seasons, ratings), timestamps, and keywords.
+4. youtubeTags: Comma-separated tags.
 
 Strictly adhere to the JSON output schema.`;
+    } else {
+      promptText = `You are a professional anime YouTube summary creator.
+Create a detailed, engaging long-form third-person narrative summary explaining what is happening and who is saying what in "${animeTitle}" Season ${seasonNumber} Episode ${episodeNumber}.
+Generate exactly 8 to 12 scenes.
+The script tone must be "${tone}" and in "${language}" language.
+
+For each scene, provide:
+1. sceneNumber: sequential index starting from 1.
+2. narratorText: Comprehensive narrator voiceover explaining the plot events of this segment and who is saying what. If the language is Hindi, it must be written in Devanagari script.
+3. visualPrompt: A detailed visual description in English of what should be shown on screen from the episode.
+4. duration: Estimated duration of this scene in seconds (usually 10 to 20 seconds).
+5. episodeTimestampStart: The starting timestamp (integer in seconds, relative to the episode start) where this scene's events occur in the episode. Distribute these timestamps evenly.
+6. dialogues: An array of key dialogue quotes of what was said in this scene. Each dialogue contains a "character" field (the name of the character) and a "text" field (the translated quote they spoke).
+
+Also, recommend where to find the raw episode (footageSuggestions field).
+
+Also, generate highly optimized YouTube metadata:
+1. youtubeTitle: A clickbaity, high-CTR YouTube video title (under 70 characters).
+2. youtubeCaption: A short clickbaity caption/hook (under 120 characters) for video sharing, shorts teaser, or title extension.
+3. youtubeDescription: An SEO-optimized video description containing anime details (seasons, ratings), timestamps, and keywords.
+4. youtubeTags: Comma-separated tags.
+
+Strictly adhere to the JSON output schema.`;
+    }
 
     const response = await ai.models.generateContent({
       model: 'gemini-3.5-flash',
@@ -1005,82 +1034,84 @@ app.post('/api/extract-script', upload.single('file'), async (req, res) => {
     return res.status(400).json({ error: 'No file uploaded.' });
   }
 
-  const { language = 'English', tone = 'Dramatic' } = req.body;
-  const originalName = req.file.originalname;
-  const filePath = req.file.path;
-  const fileExt = path.extname(originalName).toLowerCase();
+    const { language = 'English', tone = 'Dramatic', narrativeMode = 'standard' } = req.body;
+    const originalName = req.file.originalname;
+    const filePath = req.file.path;
+    const fileExt = path.extname(originalName).toLowerCase();
 
-  try {
-    const responseSchema = {
-      type: 'OBJECT',
-      properties: {
-        animeTitle: { type: 'STRING' },
-        language: { type: 'STRING' },
-        tone: { type: 'STRING' },
-        footageSuggestions: { type: 'STRING' },
-        metadata: {
-          type: 'OBJECT',
-          properties: {
-            youtubeTitle: { type: 'STRING' },
-            youtubeCaption: { type: 'STRING' },
-            youtubeDescription: { type: 'STRING' },
-            youtubeTags: { type: 'STRING' }
-          },
-          required: ['youtubeTitle', 'youtubeCaption', 'youtubeDescription', 'youtubeTags']
-        },
-        scenes: {
-          type: 'ARRAY',
-          items: {
+    try {
+      const responseSchema = {
+        type: 'OBJECT',
+        properties: {
+          animeTitle: { type: 'STRING' },
+          language: { type: 'STRING' },
+          tone: { type: 'STRING' },
+          footageSuggestions: { type: 'STRING' },
+          metadata: {
             type: 'OBJECT',
             properties: {
-              sceneNumber: { type: 'INTEGER' },
-              narratorText: { type: 'STRING' },
-              visualPrompt: { type: 'STRING' },
-              duration: { type: 'INTEGER' },
-              episodeTimestampStart: { type: 'INTEGER' },
-              dialogues: {
-                type: 'ARRAY',
-                items: {
-                  type: 'OBJECT',
-                  properties: {
-                    character: { type: 'STRING' },
-                    text: { type: 'STRING' }
-                  },
-                  required: ['character', 'text']
-                }
-              }
+              youtubeTitle: { type: 'STRING' },
+              youtubeCaption: { type: 'STRING' },
+              youtubeDescription: { type: 'STRING' },
+              youtubeTags: { type: 'STRING' }
             },
-            required: ['sceneNumber', 'narratorText', 'visualPrompt', 'duration', 'episodeTimestampStart', 'dialogues']
+            required: ['youtubeTitle', 'youtubeCaption', 'youtubeDescription', 'youtubeTags']
+          },
+          scenes: {
+            type: 'ARRAY',
+            items: {
+              type: 'OBJECT',
+              properties: {
+                sceneNumber: { type: 'INTEGER' },
+                narratorText: { type: 'STRING' },
+                visualPrompt: { type: 'STRING' },
+                duration: { type: 'INTEGER' },
+                episodeTimestampStart: { type: 'INTEGER' },
+                dialogues: {
+                  type: 'ARRAY',
+                  items: {
+                    type: 'OBJECT',
+                    properties: {
+                      character: { type: 'STRING' },
+                      text: { type: 'STRING' }
+                    },
+                    required: ['character', 'text']
+                  }
+                }
+              },
+              required: ['sceneNumber', 'narratorText', 'visualPrompt', 'duration', 'episodeTimestampStart', 'dialogues']
+            }
           }
-        }
-      },
-      required: ['animeTitle', 'language', 'tone', 'footageSuggestions', 'metadata', 'scenes']
-    };
+        },
+        required: ['animeTitle', 'language', 'tone', 'footageSuggestions', 'metadata', 'scenes']
+      };
 
-    let scriptData;
+      let scriptData;
 
-    // If it's a subtitle/text file
-    if (['.srt', '.vtt', '.txt', '.ass', '.ssa'].includes(fileExt)) {
-      const rawContentText = await fs.promises.readFile(filePath, 'utf-8');
-      fs.unlink(filePath, () => {});
+      // If it's a subtitle/text file
+      if (['.srt', '.vtt', '.txt', '.ass', '.ssa'].includes(fileExt)) {
+        const rawContentText = await fs.promises.readFile(filePath, 'utf-8');
+        fs.unlink(filePath, () => {});
 
-      const animeTitle = originalName.replace(fileExt, '').replace(/[\-_]+/g, ' ');
-      const promptText = `You are a professional anime YouTube summary creator.
+        const animeTitle = originalName.replace(fileExt, '').replace(/[\-_]+/g, ' ');
+        
+        let promptText = '';
+        if (narrativeMode === 'deep') {
+          promptText = `You are a professional anime YouTube summary creator and explainer.
 Below is the raw subtitle text or transcript of the anime episode: "${animeTitle}".
 
-Raw content:
-${rawContentText.substring(0, 45000)}
-
-Create a highly detailed script storyboard describing the sequence of events, dialogue highlights, and narration for this episode.
+Based on this raw content, generate an extremely comprehensive, deep frame-by-frame explainer script summarizing the ENTIRE episode. Do NOT take any shortcuts. The script narration must explain the whole episode frame-by-frame and who said what.
+Generate exactly 18 to 22 scenes covering the entire narrative timeline in chronological order.
+The total duration of all narration combined must be at least 8 to 10 minutes long (each scene should have around 80 to 120 words of narrator text and last 25 to 35 seconds).
 The script tone must be "${tone}" and in "${language}" language.
-Generate exactly 8 to 12 scenes.
+
 For each scene, provide:
 1. sceneNumber: sequential index starting from 1.
-2. narratorText: Comprehensive narrator voiceover in the target language.
-3. visualPrompt: A detailed visual description in English of the scenes and storyboard cues.
-4. duration: Estimated duration in seconds (usually 10 to 20 seconds).
+2. narratorText: An extremely comprehensive narrator voiceover (at least 80-120 words) explaining exactly what is happening in this segment and who is saying what. If the language is Hindi, it must be written in Devanagari script.
+3. visualPrompt: A detailed visual description in English of the scenes and visual cues.
+4. duration: Estimated duration in seconds (usually 25 to 35 seconds to reach 8-10 mins total).
 5. episodeTimestampStart: Estimated starting timestamp in seconds.
-6. dialogues: An array of key dialogue quotes of what was said in this scene. Each dialogue contains a "character" field (the name of the character) and a "text" field (the translated quote they spoke).
+6. dialogues: An array of key dialogue quotes of what was said in this scene. Each dialogue contains a "character" field and a "text" field.
 
 Also, recommend where to find the raw episode (footageSuggestions).
 
@@ -1091,17 +1122,43 @@ Also, generate highly optimized YouTube metadata:
 4. youtubeTags: Comma-separated tags.
 
 Strictly adhere to the JSON output schema.`;
+        } else {
+          promptText = `You are a professional anime YouTube summary creator.
+Below is the raw subtitle text or transcript of the anime episode: "${animeTitle}".
 
-      console.log('Generating script storyboard from subtitle file...');
-      const response = await ai.models.generateContent({
-        model: 'gemini-3.5-flash',
-        contents: promptText,
-        config: {
-          responseMimeType: 'application/json',
-          responseSchema: responseSchema
+Create a detailed, engaging long-form third-person narrative summary explaining what is happening and who is saying what in this episode.
+Generate exactly 8 to 12 scenes.
+The script tone must be "${tone}" and in "${language}" language.
+
+For each scene, provide:
+1. sceneNumber: sequential index starting from 1.
+2. narratorText: Comprehensive narrator voiceover explaining the plot events of this segment and who is saying what. If the language is Hindi, it must be written in Devanagari script.
+3. visualPrompt: A detailed visual description in English of the scenes and storyboard cues.
+4. duration: Estimated duration in seconds (usually 10 to 20 seconds).
+5. episodeTimestampStart: Estimated starting timestamp in seconds.
+6. dialogues: An array of key dialogue quotes of what was said in this scene. Each dialogue contains a "character" field and a "text" field.
+
+Also, recommend where to find the raw episode (footageSuggestions).
+
+Also, generate highly optimized YouTube metadata:
+1. youtubeTitle: A clickbaity, high-CTR YouTube video title (under 70 characters).
+2. youtubeCaption: A short clickbaity caption/hook (under 120 characters).
+3. youtubeDescription: An SEO-optimized video description containing anime details (seasons, ratings), timestamps, and keywords.
+4. youtubeTags: Comma-separated tags.
+
+Strictly adhere to the JSON output schema.`;
         }
-      });
-      scriptData = JSON.parse(response.text);
+
+        console.log('Generating script storyboard from subtitle file...');
+        const response = await ai.models.generateContent({
+          model: 'gemini-3.5-flash',
+          contents: promptText,
+          config: {
+            responseMimeType: 'application/json',
+            responseSchema: responseSchema
+          }
+        });
+        scriptData = JSON.parse(response.text);
 
     } else if (['.mp4', '.mkv', '.avi', '.mov', '.mp3', '.wav', '.m4a', '.webm'].includes(fileExt)) {
       let audioPath = filePath;
@@ -1142,15 +1199,43 @@ Strictly adhere to the JSON output schema.`;
       fs.unlink(audioPath, () => {});
 
       const animeTitle = originalName.replace(fileExt, '').replace(/[\-_]+/g, ' ');
-      const promptText = `You are a professional anime YouTube summary creator.
+      
+      let promptText = '';
+      if (narrativeMode === 'deep') {
+        promptText = `You are a professional anime YouTube summary creator and explainer.
 We have attached a 60-second audio track sample from the anime episode: "${animeTitle}".
-Use the audio sample to capture the voice, language tone, and style. Combined with your pre-trained knowledge of this specific anime episode ("${animeTitle}"), generate a highly detailed script storyboard describing the sequence of events, dialogue highlights, and narration for the ENTIRE episode.
-
+Use the audio sample to capture the voice, language tone, and style. Combined with your pre-trained knowledge of this specific anime episode ("${animeTitle}"), generate an extremely comprehensive, deep frame-by-frame explainer script summarizing the ENTIRE episode. Do NOT take any shortcuts. The script narration must explain the whole episode frame-by-frame and who said what.
+Generate exactly 18 to 22 scenes covering the entire narrative timeline in chronological order.
+The total duration of all narration combined must be at least 8 to 10 minutes long (each scene should have around 80 to 120 words of narrator text and last 25 to 35 seconds).
 The script tone must be "${tone}" and in "${language}" language.
-Generate exactly 8 to 12 scenes.
+
 For each scene, provide:
 1. sceneNumber: sequential index starting from 1.
-2. narratorText: Comprehensive narrator voiceover in the target language.
+2. narratorText: An extremely comprehensive narrator voiceover (at least 80-120 words) explaining exactly what is happening in this segment and who is saying what. If the language is Hindi, it must be written in Devanagari script.
+3. visualPrompt: A detailed visual description in English of the scenes and visual cues.
+4. duration: Estimated duration in seconds (usually 25 to 35 seconds to reach 8-10 mins total).
+5. episodeTimestampStart: Estimated starting timestamp in seconds.
+6. dialogues: An array of key dialogue quotes of what was said in this scene. Each dialogue contains a "character" field and a "text" field.
+
+Also, recommend where to find the raw episode (footageSuggestions).
+
+Also, generate highly optimized YouTube metadata:
+1. youtubeTitle: A clickbaity, high-CTR YouTube video title (under 70 characters).
+2. youtubeCaption: A short clickbaity caption/hook (under 120 characters).
+3. youtubeDescription: An SEO-optimized video description containing anime details (seasons, ratings), timestamps, and keywords.
+4. youtubeTags: Comma-separated tags.
+
+Strictly adhere to the JSON output schema.`;
+      } else {
+        promptText = `You are a professional anime YouTube summary creator.
+We have attached a 60-second audio track sample from the anime episode: "${animeTitle}".
+Use the audio sample to capture the voice, language tone, and style. Combined with your pre-trained knowledge of this specific anime episode ("${animeTitle}"), generate a detailed, engaging long-form third-person narrative summary explaining what is happening and who is saying what in this episode.
+Generate exactly 8 to 12 scenes.
+The script tone must be "${tone}" and in "${language}" language.
+
+For each scene, provide:
+1. sceneNumber: sequential index starting from 1.
+2. narratorText: Comprehensive narrator voiceover explaining the plot events of this segment and who is saying what. If the language is Hindi, it must be written in Devanagari script.
 3. visualPrompt: A detailed visual description in English of the scenes and storyboard cues.
 4. duration: Estimated duration in seconds (usually 10 to 20 seconds).
 5. episodeTimestampStart: Estimated starting timestamp in seconds.
@@ -1161,10 +1246,11 @@ Also, recommend where to find the raw episode (footageSuggestions).
 Also, generate highly optimized YouTube metadata:
 1. youtubeTitle: A clickbaity, high-CTR YouTube video title (under 70 characters).
 2. youtubeCaption: A short clickbaity caption/hook (under 120 characters).
-3. youtubeDescription: An SEO-optimized video description containing details about the anime (ratings, seasons), timestamps, and keywords.
+3. youtubeDescription: An SEO-optimized video description containing anime details (seasons, ratings), timestamps, and keywords.
 4. youtubeTags: Comma-separated tags.
 
 Strictly adhere to the JSON output schema.`;
+      }
 
       const response = await ai.models.generateContent({
         model: 'gemini-3.5-flash',
@@ -1227,7 +1313,7 @@ Strictly adhere to the JSON output schema.`;
  * @desc Retrieve subtitle/transcript online by using Gemini knowledge of a specific episode
  */
 app.post('/api/extract-subtitle-online', async (req, res) => {
-  const { animeName, seasonNumber = '1', episodeNumber, language = 'English', tone = 'Dramatic' } = req.body;
+  const { animeName, seasonNumber = '1', episodeNumber, language = 'English', tone = 'Dramatic', narrativeMode = 'standard' } = req.body;
 
   if (!animeName || !episodeNumber) {
     return res.status(400).json({ error: 'Please provide animeName and episodeNumber.' });
@@ -1280,20 +1366,47 @@ app.post('/api/extract-subtitle-online', async (req, res) => {
       required: ['animeTitle', 'language', 'tone', 'footageSuggestions', 'metadata', 'scenes']
     };
 
-    console.log(`Auto-fetching script for anime: "${animeName}" Season ${seasonNumber} Episode ${episodeNumber} via Gemini knowledge...`);
+    console.log(`Auto-fetching script for anime: "${animeName}" Season ${seasonNumber} Episode ${episodeNumber} via Gemini knowledge (mode: ${narrativeMode})...`);
 
-    const promptText = `You are a professional anime subtitle database and YouTube script writer.
+    let promptText = '';
+    if (narrativeMode === 'deep') {
+      promptText = `You are a professional anime subtitle database and YouTube script writer.
 The user wants to extract the script and key dialogues for the specific episode: "${animeName}" Season ${seasonNumber} Episode ${episodeNumber}.
-
-Using your extensive database of anime plots, scripts, transcripts, and official subtitles:
 Identify this exact episode and reconstruct its chronological narrative, scene descriptions, and dialogue quotes.
-Create a highly detailed script storyboard summarizing the plot of this episode.
+Create a highly detailed, frame-by-frame explainer script summarizing the ENTIRE episode. Do NOT take any shortcuts. The script narration must explain the whole episode frame-by-frame and who said what.
+Generate exactly 18 to 22 scenes covering every major cut, action, and dialogue in chronological order.
+The total duration of all narration combined must be at least 8 to 10 minutes long (each scene should have around 80 to 120 words of narrator text and last 25 to 35 seconds).
 The script tone must be "${tone}" and in "${language}" language.
-Generate exactly 8 to 12 scenes.
+
 For each scene, provide:
 1. sceneNumber: sequential index starting from 1.
-2. narratorText: Comprehensive narrator voiceover in the target language.
-3. visualPrompt: A detailed visual description in English of the episode scenes and storyboard cues.
+2. narratorText: An extremely comprehensive, thorough narrator voiceover segment (at least 80-120 words) explaining exactly what is happening in this segment and who is saying what. If the language is Hindi, it must be written in Devanagari script.
+3. visualPrompt: A detailed visual description in English of the scenes and visual cues.
+4. duration: Estimated duration of this scene in seconds (usually 25 to 35 seconds to reach 8-10 mins total).
+5. episodeTimestampStart: The starting timestamp (integer in seconds, relative to the episode start) where this scene's events occur in the episode. Distribute these timestamps evenly across a standard 20-minute episode timeline.
+6. dialogues: An array of key dialogue quotes of what was said in this scene. Each dialogue contains a "character" field (the name of the character) and a "text" field (the translated quote they spoke).
+
+Also, recommend where to find the raw episode (footageSuggestions).
+
+Also, generate highly optimized YouTube metadata:
+1. youtubeTitle: A clickbaity, high-CTR YouTube video title (under 70 characters).
+2. youtubeCaption: A short clickbaity caption/hook (under 120 characters).
+3. youtubeDescription: An SEO-optimized video description containing anime details (seasons, ratings), timestamps, and keywords.
+4. youtubeTags: Comma-separated tags.
+
+Strictly adhere to the JSON output schema.`;
+    } else {
+      promptText = `You are a professional anime subtitle database and YouTube script writer.
+The user wants to extract the script and key dialogues for the specific episode: "${animeName}" Season ${seasonNumber} Episode ${episodeNumber}.
+Identify this exact episode and reconstruct its chronological narrative, scene descriptions, and dialogue quotes.
+Create a detailed, engaging long-form third-person narrative summary explaining what is happening and who is saying what in this episode.
+Generate exactly 8 to 12 scenes.
+The script tone must be "${tone}" and in "${language}" language.
+
+For each scene, provide:
+1. sceneNumber: sequential index starting from 1.
+2. narratorText: Comprehensive narrator voiceover explaining the plot events of this segment and who is saying what. If the language is Hindi, it must be written in Devanagari script.
+3. visualPrompt: A detailed visual description in English of the scenes and storyboard cues.
 4. duration: Estimated duration in seconds (usually 10 to 20 seconds).
 5. episodeTimestampStart: Estimated starting timestamp in seconds.
 6. dialogues: An array of key dialogue quotes of what was said in this scene. Each dialogue contains a "character" field (the name of the character) and a "text" field (the translated quote they spoke).
@@ -1307,6 +1420,7 @@ Also, generate highly optimized YouTube metadata:
 4. youtubeTags: Comma-separated tags.
 
 Strictly adhere to the JSON output schema.`;
+    }
 
     const response = await ai.models.generateContent({
       model: 'gemini-3.5-flash',
@@ -2137,6 +2251,70 @@ Output a JSON object matching this schema:
   } catch (error) {
     console.error('Translation failed:', error);
     res.status(500).json({ error: error.message || 'Translation pipeline failed.' });
+  }
+});
+
+/**
+ * @route PUT /api/scripts/:id
+ * @desc Update a script's scenes, dialogues, or metadata (manually edited by the user)
+ */
+app.put('/api/scripts/:id', async (req, res) => {
+  const { id } = req.params;
+  const { animeTitle, language, tone, metadata, footageSuggestions, scenes } = req.body;
+
+  try {
+    let script;
+    if (isDbConnected()) {
+      script = await Script.findById(id);
+    } else {
+      script = memoryDb.find(s => s._id === id);
+    }
+
+    if (!script) {
+      return res.status(404).json({ error: 'Script not found' });
+    }
+
+    if (animeTitle !== undefined) script.animeTitle = animeTitle;
+    if (language !== undefined) script.language = language;
+    if (tone !== undefined) script.tone = tone;
+    if (footageSuggestions !== undefined) script.footageSuggestions = footageSuggestions;
+    
+    if (metadata !== undefined) {
+      script.metadata = {
+        youtubeTitle: metadata.youtubeTitle || '',
+        youtubeCaption: metadata.youtubeCaption || '',
+        youtubeDescription: metadata.youtubeDescription || '',
+        youtubeTags: metadata.youtubeTags || ''
+      };
+    }
+
+    if (scenes !== undefined && Array.isArray(scenes)) {
+      // Clear audio tracks if the narrator text has changed
+      scenes.forEach((s, idx) => {
+        const originalScene = script.scenes.find(os => os.sceneNumber === s.sceneNumber);
+        if (originalScene && originalScene.narratorText !== s.narratorText) {
+          s.audioBase64 = ''; // Reset cached TTS
+        }
+      });
+      script.scenes = scenes;
+      script.audioBase64 = ''; // Reset unified audio track
+    }
+
+    if (isDbConnected()) {
+      script.markModified('scenes');
+      if (script.metadata) script.markModified('metadata');
+      await script.save();
+    } else {
+      const idx = memoryDb.findIndex(s => s._id === id);
+      if (idx !== -1) {
+        memoryDb[idx] = script;
+      }
+    }
+
+    res.json(script);
+  } catch (error) {
+    console.error('Failed to update script:', error);
+    res.status(500).json({ error: error.message || 'Failed to update script.' });
   }
 });
 
