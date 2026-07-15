@@ -929,6 +929,7 @@ Also, generate highly optimized YouTube metadata:
 2. youtubeCaption: A short clickbaity caption/hook (under 120 characters) for video sharing, shorts teaser, or title extension.
 3. youtubeDescription: An SEO-optimized video description containing anime details (seasons, ratings), timestamps, and keywords.
 4. youtubeTags: Comma-separated tags.
+5. youtubeDisclaimer: A professional copyright fair use disclaimer stating that footage belongs to the copyright holders, used for commentary, review, and education.
 
 Strictly adhere to the JSON output schema.`;
     }
@@ -951,9 +952,10 @@ Strictly adhere to the JSON output schema.`;
                 youtubeTitle: { type: 'STRING' },
                 youtubeCaption: { type: 'STRING' },
                 youtubeDescription: { type: 'STRING' },
-                youtubeTags: { type: 'STRING' }
+                youtubeTags: { type: 'STRING' },
+                youtubeDisclaimer: { type: 'STRING' }
               },
-              required: ['youtubeTitle', 'youtubeCaption', 'youtubeDescription', 'youtubeTags']
+              required: ['youtubeTitle', 'youtubeCaption', 'youtubeDescription', 'youtubeTags', 'youtubeDisclaimer']
             },
             scenes: {
               type: 'ARRAY',
@@ -997,7 +999,8 @@ Strictly adhere to the JSON output schema.`;
         youtubeTitle: `${scriptData.animeTitle} Summary! S${seasonNumber} E${episodeNumber}`,
         youtubeCaption: `Complete breakdown of ${scriptData.animeTitle} Season ${seasonNumber} Episode ${episodeNumber}.`,
         youtubeDescription: `Detailed episode breakdown of ${scriptData.animeTitle}. Total Seasons: ${seasonNumber}, Rating: 9/10.`,
-        youtubeTags: 'anime, summary, review'
+        youtubeTags: 'anime, summary, review',
+        youtubeDisclaimer: 'Copyright Disclaimer Under Section 107 of the Copyright Act 1976, allowance is made for "fair use" for purposes such as criticism, comment, news reporting, teaching, scholarship, and research. Fair use is a use permitted by copyright statute that might otherwise be infringing.'
       },
       scenes: scriptData.scenes,
       createdAt: new Date()
@@ -1053,9 +1056,10 @@ app.post('/api/extract-script', upload.single('file'), async (req, res) => {
               youtubeTitle: { type: 'STRING' },
               youtubeCaption: { type: 'STRING' },
               youtubeDescription: { type: 'STRING' },
-              youtubeTags: { type: 'STRING' }
+              youtubeTags: { type: 'STRING' },
+              youtubeDisclaimer: { type: 'STRING' }
             },
-            required: ['youtubeTitle', 'youtubeCaption', 'youtubeDescription', 'youtubeTags']
+            required: ['youtubeTitle', 'youtubeCaption', 'youtubeDescription', 'youtubeTags', 'youtubeDisclaimer']
           },
           scenes: {
             type: 'ARRAY',
@@ -1120,6 +1124,7 @@ Also, generate highly optimized YouTube metadata:
 2. youtubeCaption: A short clickbaity caption/hook (under 120 characters).
 3. youtubeDescription: An SEO-optimized video description containing anime details (seasons, ratings), timestamps, and keywords.
 4. youtubeTags: Comma-separated tags.
+5. youtubeDisclaimer: A professional copyright fair use disclaimer stating that footage belongs to the copyright holders, used for commentary, review, and education.
 
 Strictly adhere to the JSON output schema.`;
         } else {
@@ -1145,6 +1150,7 @@ Also, generate highly optimized YouTube metadata:
 2. youtubeCaption: A short clickbaity caption/hook (under 120 characters).
 3. youtubeDescription: An SEO-optimized video description containing anime details (seasons, ratings), timestamps, and keywords.
 4. youtubeTags: Comma-separated tags.
+5. youtubeDisclaimer: A professional copyright disclaimer under section 107 of the copyright act 1976 for fair use clips.
 
 Strictly adhere to the JSON output schema.`;
         }
@@ -1224,6 +1230,7 @@ Also, generate highly optimized YouTube metadata:
 2. youtubeCaption: A short clickbaity caption/hook (under 120 characters).
 3. youtubeDescription: An SEO-optimized video description containing anime details (seasons, ratings), timestamps, and keywords.
 4. youtubeTags: Comma-separated tags.
+5. youtubeDisclaimer: A professional copyright disclaimer under section 107 of the copyright act 1976 for fair use clips.
 
 Strictly adhere to the JSON output schema.`;
       } else {
@@ -1248,6 +1255,7 @@ Also, generate highly optimized YouTube metadata:
 2. youtubeCaption: A short clickbaity caption/hook (under 120 characters).
 3. youtubeDescription: An SEO-optimized video description containing anime details (seasons, ratings), timestamps, and keywords.
 4. youtubeTags: Comma-separated tags.
+5. youtubeDisclaimer: A professional copyright disclaimer under section 107 of the copyright act 1976 for fair use clips.
 
 Strictly adhere to the JSON output schema.`;
       }
@@ -1284,7 +1292,8 @@ Strictly adhere to the JSON output schema.`;
         youtubeTitle: `Extracted: ${scriptData.animeTitle} Summary`,
         youtubeCaption: `Extracted episode summary of ${scriptData.animeTitle}.`,
         youtubeDescription: `Detailed plot summary breakdown.`,
-        youtubeTags: 'anime, summary, extracted'
+        youtubeTags: 'anime, summary, extracted',
+        youtubeDisclaimer: 'Copyright Disclaimer Under Section 107 of the Copyright Act 1976, allowance is made for "fair use" for purposes such as criticism, comment, news reporting, teaching, scholarship, and research. Fair use is a use permitted by copyright statute that might otherwise be infringing.'
       },
       scenes: scriptData.scenes,
       createdAt: new Date()
@@ -1333,9 +1342,10 @@ app.post('/api/extract-subtitle-online', async (req, res) => {
             youtubeTitle: { type: 'STRING' },
             youtubeCaption: { type: 'STRING' },
             youtubeDescription: { type: 'STRING' },
-            youtubeTags: { type: 'STRING' }
+            youtubeTags: { type: 'STRING' },
+            youtubeDisclaimer: { type: 'STRING' }
           },
-          required: ['youtubeTitle', 'youtubeCaption', 'youtubeDescription', 'youtubeTags']
+          required: ['youtubeTitle', 'youtubeCaption', 'youtubeDescription', 'youtubeTags', 'youtubeDisclaimer']
         },
         scenes: {
           type: 'ARRAY',
@@ -1393,6 +1403,7 @@ Also, generate highly optimized YouTube metadata:
 2. youtubeCaption: A short clickbaity caption/hook (under 120 characters).
 3. youtubeDescription: An SEO-optimized video description containing anime details (seasons, ratings), timestamps, and keywords.
 4. youtubeTags: Comma-separated tags.
+5. youtubeDisclaimer: A professional copyright disclaimer under section 107 of the copyright act 1976 for fair use clips.
 
 Strictly adhere to the JSON output schema.`;
     } else {
@@ -1418,6 +1429,7 @@ Also, generate highly optimized YouTube metadata:
 2. youtubeCaption: A short clickbaity caption/hook (under 120 characters).
 3. youtubeDescription: An SEO-optimized video description containing anime details (seasons, ratings), timestamps, and keywords.
 4. youtubeTags: Comma-separated tags.
+5. youtubeDisclaimer: A professional copyright disclaimer under section 107 of the copyright act 1976 for fair use clips.
 
 Strictly adhere to the JSON output schema.`;
     }
@@ -1442,7 +1454,8 @@ Strictly adhere to the JSON output schema.`;
         youtubeTitle: `Online: ${scriptData.animeTitle} S${seasonNumber} Ep ${episodeNumber} Summary`,
         youtubeCaption: `Extracted online episode summary of ${scriptData.animeTitle}.`,
         youtubeDescription: `Detailed plot summary breakdown.`,
-        youtubeTags: 'anime, summary, extracted'
+        youtubeTags: 'anime, summary, extracted',
+        youtubeDisclaimer: 'Copyright Disclaimer Under Section 107 of the Copyright Act 1976, allowance is made for "fair use" for purposes such as criticism, comment, news reporting, teaching, scholarship, and research. Fair use is a use permitted by copyright statute that might otherwise be infringing.'
       },
       scenes: scriptData.scenes,
       createdAt: new Date()
@@ -1731,6 +1744,7 @@ Also, generate highly optimized YouTube metadata:
 2. youtubeCaption: A short clickbaity caption/hook (under 120 characters).
 3. youtubeDescription: An SEO-optimized video description containing details about the manga (ratings, authors, chapters), timestamps, and keywords.
 4. youtubeTags: Comma-separated tags.
+5. youtubeDisclaimer: A professional copyright disclaimer under section 107 of the copyright act 1976 for fair use clips.
 
 Strictly adhere to the JSON output schema.`;
 
@@ -1756,6 +1770,7 @@ Also, generate highly optimized YouTube metadata:
 2. youtubeCaption: A short clickbaity caption/hook (under 120 characters).
 3. youtubeDescription: An SEO-optimized video description containing details about the manga (ratings, authors, chapters), timestamps, and keywords.
 4. youtubeTags: Comma-separated tags.
+5. youtubeDisclaimer: A professional copyright disclaimer under section 107 of the copyright act 1976 for fair use clips.
 
 Strictly adhere to the JSON output schema.`;
     }
@@ -1781,9 +1796,10 @@ Strictly adhere to the JSON output schema.`;
                 youtubeTitle: { type: 'STRING' },
                 youtubeCaption: { type: 'STRING' },
                 youtubeDescription: { type: 'STRING' },
-                youtubeTags: { type: 'STRING' }
+                youtubeTags: { type: 'STRING' },
+                youtubeDisclaimer: { type: 'STRING' }
               },
-              required: ['youtubeTitle', 'youtubeCaption', 'youtubeDescription', 'youtubeTags']
+              required: ['youtubeTitle', 'youtubeCaption', 'youtubeDescription', 'youtubeTags', 'youtubeDisclaimer']
             },
             scenes: {
               type: 'ARRAY',
@@ -1827,7 +1843,8 @@ Strictly adhere to the JSON output schema.`;
         youtubeTitle: `${scriptData.animeTitle} Chapters ${startChapter} to ${endChapter} Breakdown!`,
         youtubeCaption: `Manga chapter analysis for ${scriptData.animeTitle}.`,
         youtubeDescription: `Detailed manga breakdown.`,
-        youtubeTags: 'manga, review, analysis'
+        youtubeTags: 'manga, review, analysis',
+        youtubeDisclaimer: 'Copyright Disclaimer Under Section 107 of the Copyright Act 1976, allowance is made for "fair use" for purposes such as criticism, comment, news reporting, teaching, scholarship, and research. Fair use is a use permitted by copyright statute that might otherwise be infringing.'
       },
       scenes: scriptData.scenes,
       createdAt: new Date()

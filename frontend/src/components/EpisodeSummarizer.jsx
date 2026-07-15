@@ -134,6 +134,7 @@ export default function EpisodeSummarizer({
       textBlocks.push(`Title: ${generatedScript.metadata.youtubeTitle}`);
       textBlocks.push(`Caption: ${generatedScript.metadata.youtubeCaption}`);
       textBlocks.push(`Description:\n${generatedScript.metadata.youtubeDescription}`);
+      textBlocks.push(`Disclaimer: ${generatedScript.metadata.youtubeDisclaimer || 'Fair Use copyright disclaimer'}`);
       textBlocks.push(`Tags: ${generatedScript.metadata.youtubeTags}`);
     }
     textBlocks.push(`\n[SCENE TIMELINE STORYBOARD]`);
@@ -164,6 +165,7 @@ export default function EpisodeSummarizer({
   const [copiedCaption, setCopiedCaption] = useState(false);
   const [copiedDesc, setCopiedDesc] = useState(false);
   const [copiedTags, setCopiedTags] = useState(false);
+  const [copiedDisclaimer, setCopiedDisclaimer] = useState(false);
 
   const copyToClipboard = (text, type) => {
     if (!text) return;
@@ -180,6 +182,9 @@ export default function EpisodeSummarizer({
     } else if (type === 'tags') {
       setCopiedTags(true);
       setTimeout(() => setCopiedTags(false), 2000);
+    } else if (type === 'disclaimer') {
+      setCopiedDisclaimer(true);
+      setTimeout(() => setCopiedDisclaimer(false), 2000);
     }
   };
 
@@ -748,6 +753,27 @@ export default function EpisodeSummarizer({
                       readOnly
                       value={generatedScript.metadata.youtubeDescription}
                       className="w-full bg-slate-950/60 border border-slate-800/80 rounded-xl px-3 py-2 text-[10px] text-slate-300 font-mono resize-none focus:outline-none h-24 select-all leading-normal"
+                    />
+                  </div>
+
+                  {/* Copyright Disclaimer */}
+                  <div className="space-y-1">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[9px] font-black text-amber-500 uppercase tracking-widest">
+                        Fair Use Copyright Disclaimer
+                      </span>
+                      <button
+                        onClick={() => copyToClipboard(generatedScript.metadata.youtubeDisclaimer || 'Copyright Disclaimer Under Section 107 of the Copyright Act 1976, allowance is made for "fair use" for purposes such as criticism, comment, news reporting, teaching, scholarship, and research. Fair use is a use permitted by copyright statute that might otherwise be infringing. Non-profit, educational or personal use tips the balance in favor of fair use. No copyright infringement intended.', 'disclaimer')}
+                        className="text-[9px] font-bold text-cyber-muted hover:text-amber-500 flex items-center gap-1 transition-all"
+                      >
+                        {copiedDisclaimer ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
+                        <span>{copiedDisclaimer ? 'Copied!' : 'Copy'}</span>
+                      </button>
+                    </div>
+                    <textarea
+                      readOnly
+                      value={generatedScript.metadata.youtubeDisclaimer || 'Copyright Disclaimer Under Section 107 of the Copyright Act 1976, allowance is made for "fair use" for purposes such as criticism, comment, news reporting, teaching, scholarship, and research. Fair use is a use permitted by copyright statute that might otherwise be infringing. Non-profit, educational or personal use tips the balance in favor of fair use. No copyright infringement intended.'}
+                      className="w-full bg-slate-950/60 border border-slate-800/80 rounded-xl px-3 py-2 text-[10px] text-slate-400 font-mono resize-none focus:outline-none h-20 select-all leading-normal"
                     />
                   </div>
 

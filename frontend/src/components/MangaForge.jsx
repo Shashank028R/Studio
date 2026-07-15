@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Sparkles, FileText, Volume2, Loader2, Play, 
   HelpCircle, Settings, CheckCircle, ListTodo, Film,
-  ChevronDown, Copy, Check, Globe, Upload, Trash2, BookOpen
+  ChevronDown, Copy, Check, Globe, Upload, Trash2, BookOpen, Plus, Save
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import ScriptHistory from './ScriptHistory';
@@ -29,12 +29,133 @@ export default function MangaForge({ fetchScripts, scripts, activeScript, onSele
   // Audio synthesis status
   const [isSynthesizing, setIsSynthesizing] = useState(false);
   const [synthesisVoice, setSynthesisVoice] = useState('Puck');
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSceneFieldChange = (index, field, value) => {
+    if (!generatedScript) return;
+    const updatedScenes = [...generatedScript.scenes];
+    updatedScenes[index] = { ...updatedScenes[index], [field]: value };
+    setGeneratedScript({ ...generatedScript, scenes: updatedScenes });
+  };
+
+  const handleDialogueChange = (sceneIndex, dialogueIndex, field, value) => {
+    if (!generatedScript) return;
+    const updatedScenes = [...generatedScript.scenes];
+    const updatedDialogues = [...updatedScenes[sceneIndex].dialogues];
+    updatedDialogues[dialogueIndex] = { ...updatedDialogues[dialogueIndex], [field]: value };
+    updatedScenes[sceneIndex] = { ...updatedScenes[sceneIndex], dialogues: updatedDialogues };
+    setGeneratedScript({ ...generatedScript, scenes: updatedScenes });
+  };
+
+  const handleAddDialogue = (sceneIndex) => {
+    if (!generatedScript) return;
+    const updatedScenes = [...generatedScript.scenes];
+    const updatedDialogues = [...(updatedScenes[sceneIndex].dialogues || [])];
+    updatedDialogues.push({ character: 'Character', text: 'New Quote line' });
+    updatedScenes[sceneIndex] = { ...updatedScenes[sceneIndex], dialogues: updatedDialogues };
+    setGeneratedScript({ ...generatedScript, scenes: updatedScenes });
+  };
+
+  const handleRemoveDialogue = (sceneIndex, dialogueIndex) => {
+    if (!generatedScript) return;
+    const updatedScenes = [...generatedScript.scenes];
+    const updatedDialogues = [...updatedScenes[sceneIndex].dialogues];
+    updatedDialogues.splice(dialogueIndex, 1);
+    updatedScenes[sceneIndex] = { ...updatedScenes[sceneIndex], dialogues: updatedDialogues };
+    setGeneratedScript({ ...generatedScript, scenes: updatedScenes });
+  };
+
+  const handleAddScene = () => {
+    if (!generatedScript) return;
+    const updatedScenes = [...generatedScript.scenes];
+    const newSceneNumber = updatedScenes.length > 0 ? Math.max(...updatedScenes.map(s => s.sceneNumber)) + 1 : 1;
+    const lastTimestamp = updatedScenes.length > 0 ? updatedScenes[updatedScenes.length - 1].episodeTimestampStart + 15 : 60;
+    
+    updatedScenes.push({
+      sceneNumber: newSceneNumber,
+      narratorText: 'Enter segment narration summary details...',
+      visualPrompt: 'Visual scene illustration description...',
+      duration: 15,
+      episodeTimestampStart: lastTimestamp,
+      dialogues: []
+    });
+    setGeneratedScript({ ...generatedScript, scenes: updatedScenes });
+  };
+
+  const handleRemoveScene = (index) => {
+    if (!generatedScript) return;
+    const updatedScenes = [...generatedScript.scenes];
+    updatedScenes.splice(index, 1);
+    const reindexed = updatedScenes.map((s, idx) => ({ ...s, sceneNumber: idx + 1 }));
+    setGeneratedScript({ ...generatedScript, scenes: reindexed });
+  };
+
+  const handleSaveScript = async () => {
+    setIsSaving(true);
+    setError('');
+    setSuccessMsg('Saving manually edited scenes and metadata...');
+
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/scripts/${generatedScript._id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(generatedScript)
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to save script changes.');
+      }
+
+      const updated = await response.json();
+      setGeneratedScript(updated);
+      onSelectScript(updated);
+      setSuccessMsg('All script changes successfully saved to database! Re-synthesize audio below to update the voice tracks.');
+
+      if (fetchScripts) fetchScripts();
+    } catch (err) {
+      console.error(err);
+      setError(err.message || 'Error occurred while saving script.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleCopyWholeScript = () => {
+    if (!generatedScript) return;
+    const textBlocks = [];
+    textBlocks.push(`=== MANGA SCRIPT: ${generatedScript.animeTitle} ===`);
+    textBlocks.push(`Language: ${generatedScript.language} | Tone: ${generatedScript.tone}`);
+    if (generatedScript.metadata) {
+      textBlocks.push(`\n[YOUTUBE METADATA]`);
+      textBlocks.push(`Title: ${generatedScript.metadata.youtubeTitle}`);
+      textBlocks.push(`Caption: ${generatedScript.metadata.youtubeCaption}`);
+      textBlocks.push(`Description:\n${generatedScript.metadata.youtubeDescription}`);
+      textBlocks.push(`Disclaimer: ${generatedScript.metadata.youtubeDisclaimer || 'Fair Use copyright disclaimer'}`);
+      textBlocks.push(`Tags: ${generatedScript.metadata.youtubeTags}`);
+    }
+    textBlocks.push(`\n[SCENE TIMELINE STORYBOARD]`);
+    generatedScript.scenes.forEach(s => {
+      textBlocks.push(`\n--- Scene #${s.sceneNumber} (Clip Start: ${s.episodeTimestampStart}s | Duration: ${s.duration}s) ---`);
+      textBlocks.push(`Visuals: ${s.visualPrompt}`);
+      textBlocks.push(`Narration: ${s.narratorText}`);
+      if (s.dialogues && s.dialogues.length > 0) {
+        textBlocks.push(`Dialogues:`);
+        s.dialogues.forEach(d => {
+          textBlocks.push(`  * ${d.character}: "${d.text}"`);
+        });
+      }
+    });
+    navigator.clipboard.writeText(textBlocks.join('\n'));
+    setSuccessMsg('Entire script compiled and copied to clipboard successfully!');
+  };
 
   // Copy state clips
   const [copiedTitle, setCopiedTitle] = useState(false);
   const [copiedCaption, setCopiedCaption] = useState(false);
   const [copiedDesc, setCopiedDesc] = useState(false);
   const [copiedTags, setCopiedTags] = useState(false);
+  const [copiedDisclaimer, setCopiedDisclaimer] = useState(false);
 
   // Translation state
   const [translationLang, setTranslationLang] = useState('Hindi');
@@ -55,6 +176,9 @@ export default function MangaForge({ fetchScripts, scripts, activeScript, onSele
     } else if (type === 'tags') {
       setCopiedTags(true);
       setTimeout(() => setCopiedTags(false), 2000);
+    } else if (type === 'disclaimer') {
+      setCopiedDisclaimer(true);
+      setTimeout(() => setCopiedDisclaimer(false), 2000);
     }
   };
 
@@ -370,14 +494,35 @@ export default function MangaForge({ fetchScripts, scripts, activeScript, onSele
             animate={{ opacity: 1, y: 0 }}
             className="space-y-4"
           >
-            <div className="glass-panel rounded-2xl p-5 border-purple-500/20 shadow-inner">
-              <h3 className="text-sm font-black text-white uppercase tracking-widest mb-1.5">
-                {generatedScript.animeTitle}
-              </h3>
-              <div className="flex gap-4 text-[10px] text-cyber-muted font-mono uppercase">
-                <span>Language: {generatedScript.language}</span>
-                <span>Tone: {generatedScript.tone}</span>
-                <span>Type: Manga</span>
+            <div className="glass-panel rounded-2xl p-5 border-purple-500/20 shadow-inner flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <div className="text-left">
+                <h3 className="text-sm font-black text-white uppercase tracking-widest mb-1.5">
+                  {generatedScript.animeTitle}
+                </h3>
+                <div className="flex gap-4 text-[10px] text-cyber-muted font-mono uppercase">
+                  <span>Language: {generatedScript.language}</span>
+                  <span>Tone: {generatedScript.tone}</span>
+                  <span>Segments: {generatedScript.scenes.length}</span>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  onClick={handleCopyWholeScript}
+                  className="flex items-center justify-center gap-1 bg-slate-950/80 hover:bg-slate-900 border border-slate-800 hover:border-cyber-cyan text-[10px] font-black text-cyber-cyan uppercase tracking-wider px-3.5 py-2 rounded-xl transition-all"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                  <span>Copy Script</span>
+                </button>
+
+                <button
+                  onClick={handleSaveScript}
+                  disabled={isSaving}
+                  className="flex items-center justify-center gap-1 bg-gradient-to-r from-cyan-500 to-purple-600 hover:opacity-90 disabled:opacity-50 text-[10px] font-black text-white uppercase tracking-wider px-3.5 py-2.5 rounded-xl transition-all shadow-md"
+                >
+                  {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                  <span>{isSaving ? 'Saving...' : 'Save Changes'}</span>
+                </button>
               </div>
             </div>
 
@@ -475,6 +620,27 @@ export default function MangaForge({ fetchScripts, scripts, activeScript, onSele
                     />
                   </div>
 
+                  {/* Copyright Disclaimer */}
+                  <div className="space-y-1">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[9px] font-black text-amber-500 uppercase tracking-widest">
+                        Fair Use Copyright Disclaimer
+                      </span>
+                      <button
+                        onClick={() => copyToClipboard(generatedScript.metadata.youtubeDisclaimer || 'Copyright Disclaimer Under Section 107 of the Copyright Act 1976, allowance is made for "fair use" for purposes such as criticism, comment, news reporting, teaching, scholarship, and research. Fair use is a use permitted by copyright statute that might otherwise be infringing. Non-profit, educational or personal use tips the balance in favor of fair use. No copyright infringement intended.', 'disclaimer')}
+                        className="text-[9px] font-bold text-cyber-muted hover:text-amber-500 flex items-center gap-1 transition-all"
+                      >
+                        {copiedDisclaimer ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
+                        <span>{copiedDisclaimer ? 'Copied!' : 'Copy'}</span>
+                      </button>
+                    </div>
+                    <textarea
+                      readOnly
+                      value={generatedScript.metadata.youtubeDisclaimer || 'Copyright Disclaimer Under Section 107 of the Copyright Act 1976, allowance is made for "fair use" for purposes such as criticism, comment, news reporting, teaching, scholarship, and research. Fair use is a use permitted by copyright statute that might otherwise be infringing. Non-profit, educational or personal use tips the balance in favor of fair use. No copyright infringement intended.'}
+                      className="w-full bg-slate-950/60 border border-slate-800/80 rounded-xl px-3 py-2 text-[10px] text-slate-400 font-mono resize-none focus:outline-none h-20 select-all leading-normal"
+                    />
+                  </div>
+
                   <div className="space-y-1">
                     <div className="flex justify-between items-center">
                       <span className="text-[9px] font-black text-cyber-purple uppercase tracking-widest">Recommended Tags</span>
@@ -553,60 +719,128 @@ export default function MangaForge({ fetchScripts, scripts, activeScript, onSele
               {generatedScript.scenes.map((scene, index) => (
                 <div 
                   key={index}
-                  className="bg-[#0c0817]/70 border border-slate-900 rounded-xl p-4 space-y-3"
+                  className="bg-[#0c0817]/70 border border-slate-900 rounded-xl p-5 space-y-4 relative text-left"
                 >
-                  <div className="flex justify-between items-center border-b border-slate-900 pb-2">
-                    <span className="text-xs font-bold text-cyber-purple uppercase tracking-wider">
-                      Segment #{scene.sceneNumber}
-                    </span>
-                    <div className="flex gap-3 text-[10px] text-cyber-muted font-mono">
-                      <span>Timestamp: {scene.episodeTimestampStart}s</span>
-                      <span>Duration: {scene.duration}s</span>
+                  {/* Scene Header */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-900 pb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-black text-cyber-purple uppercase tracking-wider">
+                        Segment #{scene.sceneNumber}
+                      </span>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-3">
+                      <div className="flex items-center gap-1.5 text-[10px] text-cyber-muted font-mono">
+                        <span>Start:</span>
+                        <input
+                          type="number"
+                          value={scene.episodeTimestampStart}
+                          onChange={(e) => handleSceneFieldChange(index, 'episodeTimestampStart', parseInt(e.target.value) || 0)}
+                          className="w-14 bg-slate-950/80 border border-slate-800 rounded px-1.5 py-0.5 text-center text-white focus:outline-none"
+                        />
+                        <span>s</span>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 text-[10px] text-cyber-muted font-mono">
+                        <span>Duration:</span>
+                        <input
+                          type="number"
+                          value={scene.duration}
+                          onChange={(e) => handleSceneFieldChange(index, 'duration', parseInt(e.target.value) || 0)}
+                          className="w-12 bg-slate-950/80 border border-slate-800 rounded px-1.5 py-0.5 text-center text-white focus:outline-none"
+                        />
+                        <span>s</span>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveScene(index)}
+                        className="text-red-400 hover:text-red-500 transition-colors p-1"
+                        title="Remove segment"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   </div>
 
-                  <div className="space-y-2.5">
+                  {/* Scene Fields */}
+                  <div className="space-y-3">
+                    {/* Narration summary text */}
                     <div>
-                      <span className="text-[9px] font-black text-cyber-cyan uppercase tracking-widest block mb-0.5">
-                        Narration text
+                      <span className="text-[9px] font-black text-cyber-cyan uppercase tracking-widest block mb-1">
+                        Narration summary text
                       </span>
-                      <p className="text-[11px] text-slate-300 leading-relaxed">
-                        {scene.narratorText}
-                      </p>
+                      <textarea
+                        value={scene.narratorText}
+                        onChange={(e) => handleSceneFieldChange(index, 'narratorText', e.target.value)}
+                        rows={3}
+                        className="w-full bg-slate-950/50 border border-slate-900 focus:border-cyber-cyan/50 rounded-xl px-3 py-2 text-[11px] text-slate-200 leading-relaxed focus:outline-none transition-all resize-y"
+                      />
                     </div>
 
-                    {/* Dialogue attribution section */}
-                    {scene.dialogues && scene.dialogues.length > 0 && (
-                      <div className="bg-[#05030d] border border-cyan-500/5 rounded-lg p-2.5 space-y-1.5">
+                    {/* Dialogue Quotes ("who said what") */}
+                    <div className="bg-[#05030d] border border-cyan-500/5 rounded-xl p-3.5 space-y-2.5">
+                      <div className="flex items-center justify-between">
                         <span className="text-[8px] font-black text-cyber-pink uppercase tracking-widest block">
-                          📢 Dialogue quotes
+                          📢 Dialogue quotes ("who said what")
                         </span>
-                        <div className="space-y-1">
-                          {scene.dialogues.map((d, dIdx) => (
-                            <div key={dIdx} className="text-[10px] leading-relaxed">
-                              <span className="text-cyber-cyan font-bold">{d.character}:</span>{' '}
-                              <span className="text-slate-300 italic">"{d.text}"</span>
-                            </div>
-                          ))}
-                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleAddDialogue(index)}
+                          className="flex items-center gap-1 text-[8px] font-black text-cyber-cyan hover:text-cyber-pink uppercase tracking-wider transition-all"
+                        >
+                          <Plus className="w-2.5 h-2.5" /> Add Quote
+                        </button>
                       </div>
-                    )}
 
+                      <div className="space-y-2">
+                        {scene.dialogues && scene.dialogues.map((d, dIdx) => (
+                          <div key={dIdx} className="flex gap-2 items-center">
+                            <input 
+                              type="text" 
+                              placeholder="Speaker"
+                              className="w-1/4 bg-slate-950 border border-slate-800 rounded-lg p-1.5 text-[10px] text-cyber-cyan focus:outline-none" 
+                              value={d.character} 
+                              onChange={(e) => handleDialogueChange(index, dIdx, 'character', e.target.value)}
+                            />
+                            <input 
+                              type="text" 
+                              placeholder="Dialogue quote text"
+                              className="w-3/4 bg-slate-950 border border-slate-900 rounded-lg p-1.5 text-[10px] text-slate-300 focus:outline-none" 
+                              value={d.text} 
+                              onChange={(e) => handleDialogueChange(index, dIdx, 'text', e.target.value)}
+                            />
+                            <button 
+                              type="button" 
+                              onClick={() => handleRemoveDialogue(index, dIdx)} 
+                              className="text-red-400 hover:text-red-500 transition-colors p-1"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Visual Scene Prompt */}
                     <div>
-                      <span className="text-[9px] font-black text-cyber-pink uppercase tracking-widest block mb-0.5">
+                      <span className="text-[9px] font-black text-cyber-pink uppercase tracking-widest block mb-1">
                         Visual scene prompt
                       </span>
-                      <p className="text-[10px] italic text-cyber-muted">
-                        {scene.visualPrompt}
-                      </p>
+                      <textarea
+                        value={scene.visualPrompt}
+                        onChange={(e) => handleSceneFieldChange(index, 'visualPrompt', e.target.value)}
+                        rows={2}
+                        className="w-full bg-slate-950/50 border border-slate-900 focus:border-cyber-pink/50 rounded-xl px-3 py-2 text-[10px] italic text-cyber-muted focus:outline-none transition-all resize-y"
+                      />
                     </div>
 
                     {/* Separate Audio Player */}
                     {(generatedScript.audioBase64 === 'separate' || scene.audioBase64) && (
-                      <div className="mt-3 bg-[#07050f]/90 border border-purple-500/10 rounded-xl p-2.5 flex items-center justify-between gap-3 animate-fade-in">
+                      <div className="mt-3 bg-[#07050f]/90 border border-purple-500/10 rounded-xl p-2.5 flex items-center justify-between gap-3">
                         <div className="flex items-center gap-2">
-                          <Volume2 className="w-3.5 h-3.5 text-cyber-cyan" />
-                          <span className="text-[10px] font-bold text-slate-300">Segment Audio</span>
+                          <Volume2 className="w-3.5 h-3.5 text-cyber-cyan animate-pulse" />
+                          <span className="text-[10px] font-bold text-slate-300">Scene Voiceover</span>
                         </div>
                         <audio 
                           src={`${BACKEND_URL}/api/scripts/${generatedScript._id}/scenes/${scene.sceneNumber}/audio?t=${Date.now()}`}
@@ -618,6 +852,14 @@ export default function MangaForge({ fetchScripts, scripts, activeScript, onSele
                   </div>
                 </div>
               ))}
+
+              <button 
+                type="button" 
+                onClick={handleAddScene} 
+                className="w-full py-3.5 border border-dashed border-purple-500/30 rounded-xl hover:border-purple-500/60 text-xs font-black text-cyber-purple hover:text-cyber-pink uppercase tracking-widest transition-all flex items-center justify-center gap-1.5"
+              >
+                <Plus className="w-4 h-4" /> Add New Segment
+              </button>
             </div>
           </motion.div>
         ) : (
